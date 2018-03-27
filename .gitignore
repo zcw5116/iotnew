@@ -1,0 +1,8 @@
+target
+metastore_db
+out
+.idea
+*.iml
+.settings
+.project
+.classpath

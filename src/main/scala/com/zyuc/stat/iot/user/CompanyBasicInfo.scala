@@ -44,11 +44,14 @@ object CompanyBasicInfo {
 
     // 关联企业名称
     import sqlContext.implicits._
-    val companyNameDF = sqlContext.read.format("text").load(companyNameFile).map(x=>x.getString(0).replaceAll(" ","").split(":", 2)).map(x=>(x(0).trim, x(1).trim)).toDF("companyname", "companycode")
+    val companyNameDF = sqlContext.read.format("text").load(companyNameFile).
+      map(x=>x.getString(0).replaceAll(" ","").split(":", 2)).map(x=>(x(0).trim, x(1).trim)).
+      toDF("companyname", "companycode")
     val companNameDimTable = "companNameDimTable"
     companyNameDF.registerTempTable(companNameDimTable)
 
     val companyTable = "companyTable_" + userTablePartitionID
+    // 1 as flag
     sqlContext.sql(
       s"""
          |cache table ${companyTable} as
@@ -58,7 +61,8 @@ object CompanyBasicInfo {
          |select provincecode, provincename, companycode, vpdndomain, flag
          |from
          |(
-         |    select provincecode, provincename, companycode, flag, (case when length(vpdndomain)=0 then null else vpdndomain end) as vpdndomain,
+         |    select provincecode, provincename, companycode, 1 as flag,
+         |    (case when length(vpdndomain)=0 then null else vpdndomain end) as vpdndomain,
          |           row_number() over(partition by companycode) rn
          |    from ${companyAndDomain} where d='${userTablePartitionID}'
          |) c where c.rn=1
@@ -92,7 +96,7 @@ object CompanyBasicInfo {
          |on(u.companycode=c.companycode)
        """.stripMargin)
 
-    val companyRDD = resultDF.coalesce(1).rdd.map(x=>{
+    val companyRDD = resultDF.repartition(1).rdd.map(x=>{
       val procode = if (null == x(0) || ""==x(0).toString) "-1" else x(0).toString
       val proname = if (null == x(1) || ""==x(1).toString) "-1" else x(1).toString
       val comcode = if (null == x(2) || ""==x(2).toString) "-1" else x(2).toString
@@ -189,7 +193,7 @@ object CompanyBasicInfo {
          |where m.companycode=c.companycode
        """.stripMargin)
 
-    val companyDomainRDD = companyDomainDF.filter("length(vpdndomain)>0").coalesce(1).rdd.map(x=>{
+    val companyDomainRDD = companyDomainDF.filter("length(vpdndomain)>0").repartition(1).rdd.map(x=>{
       val procode = if(null == x(0)) "-1" else x(0).toString
       val proname = if(null == x(1)) "-1" else x(1).toString
       val comcode = if (null == x(2) || ""== x(2)) "-1" else x(2).toString

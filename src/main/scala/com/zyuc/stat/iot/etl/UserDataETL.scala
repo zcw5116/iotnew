@@ -59,7 +59,7 @@ object UserDataETL {
     val fileUserDF = sqlContext.sql(
       s"""
          |select mdn, imsicdma, imsilte, companycode, vpdndomain, isvpdn, isdirect, userstatus, atrbprovince,
-         |       userprovince, belo_city, belo_prov, custstatus, custtype, prodtype,internetType,vpdnOnly,isCommon
+         |       userprovince, belo_city, belo_prov, custstatus, custtype, prodtype,internetType,vpdnOnly,isCommon, imei
          |from ${tmpFileTable}
        """.stripMargin)
     var userDF = fileUserDF
@@ -75,7 +75,7 @@ object UserDataETL {
       sqlContext.sql(
         s"""
            |select mdn, imsicdma, imsilte, companycode, vpdndomain, isvpdn, isdirect, userstatus, atrbprovince,
-           |       userprovince, belo_city, belo_prov, custstatus, custtype, prodtype, internetType, vpdnOnly, isCommon
+           |       userprovince, belo_city, belo_prov, custstatus, custtype, prodtype, internetType, vpdnOnly, isCommon,  imei
            |from ${userInfoTable}
            |where d='${userPrePartionD}'
        """.stripMargin).registerTempTable(preDayUserTable)
@@ -99,7 +99,8 @@ object UserDataETL {
            |        if(t.mdn is null, u.prodtype,t.prodtype) as prodtype,
            |        if(t.mdn is null, u.internetType,t.internetType) as internetType,
            |        if(t.mdn is null, u.vpdnOnly,t.vpdnOnly) as vpdnOnly,
-           |        if(t.mdn is null, u.isCommon,t.isCommon) as isCommon
+           |        if(t.mdn is null, u.isCommon,t.isCommon) as isCommon,
+           |        if(t.mdn is null, u.imei,t.imei) as imei
            |        from ${preDayUserTable} u full outer join  ${incrUserTable} t
            |        on(u.mdn=t.mdn)
        """.stripMargin
@@ -151,7 +152,8 @@ object UserDataETL {
 
 
     val tmpProvinceMapcodeDF = sqlContext.read.format("text").load(provinceMapcodeFile)
-    val provinceMapcodeDF = tmpProvinceMapcodeDF.map(x=>x.getString(0).split("\t",5)).map(x=>(x(0),x(1))).distinct().toDF("provincecode", "provincename")
+    val provinceMapcodeDF = tmpProvinceMapcodeDF.map(x=>x.getString(0).split("\t",5)).
+      map(x=>(x(0),x(1))).distinct().toDF("provincecode", "provincename")
     val DomainAndCompanyDF = tmpDomainAndCompanyDF.join(provinceMapcodeDF,
       tmpDomainAndCompanyDF.col("belo_prov")===provinceMapcodeDF.col("provincecode")).
     select("companycode", "vpdndomain","provincecode","provincename")
@@ -166,7 +168,7 @@ object UserDataETL {
          |    select provincecode,provincename,companycode,vpdndomain,
          |           row_number() over(partition by companycode order by provincecode desc) as rn
          |    from ${domainAndCompanyTable}
-         |) where rn = 1
+         |) a where a.rn = 1
        """.stripMargin).coalesce(1).write.format("orc").mode(SaveMode.Overwrite).save(companyAndDomainOutputPath)
 
     sqlContext.sql(s"alter table $companyAndDomainTable add if not exists partition(d='$dataDayid') ")

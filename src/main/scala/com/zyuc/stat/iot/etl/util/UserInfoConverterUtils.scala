@@ -12,7 +12,18 @@ import scala.collection.mutable
   */
 object UserInfoConverterUtils extends Logging {
 
+/*
+ "$MDN|$IMSICDMA|$IMSILTE|$ICCID|$IMEI|
 
+ $CompanyCode|$VpdnCompanyCode|$ApnCompanyCode|$NetType|$VpdnDomain
+
+ |$IsVpdn|$SubscribeTimeAaa|$SubscribeTimeHlr|$SubscribeTimeHss
+
+ |$SubscribeTimePcrf|$FirstActiveTime|$UserStatus|$AtrbProvince|$UserProvince
+
+ |$BELO_CITY|$BELO_PROV|$CustStatus|$CustType|$ProdType\n";
+
+ */
   val struct = StructType(Array(
     StructField("mdn", StringType),
     StructField("imsicdma", StringType),
@@ -65,12 +76,15 @@ object UserInfoConverterUtils extends Logging {
 
       val isVPDN = if (p(10) == "1") "1" else "0"
 
-      val internetType = p(24)
-      val vpdnOnly = if(internetType.contains("VpdnBlockInternet")) "1" else "0"
-      val isCommon = if(vpdnOnly!="1" && isDirect!="1") "1" else "0"
+      val internetType = "-1" // 占位  p(24)
+      //val vpdnOnly = if(internetType.contains("VpdnBlockInternet")) "1" else "0"
+      //val isCommon = if(vpdnOnly!="1" && isDirect!="1") "1" else "0"
+      val vpdnOnly = "-1" // 占位
+      val isCommon = if(isVPDN!="1" && isDirect!="1") "1" else "0"
 
 
-      Row(p(0), p(1), p(2), p(3), p(4), p(5), p(6), p(7), p(8), p(9), isVPDN, isDirect, p(11), p(12), p(13), p(14), p(15), p(16), p(17), p(18), p(19), p(20), p(21), p(22), p(23), internetType, vpdnOnly, isCommon)
+      Row(p(0), p(1), p(2), p(3), p(4), p(5), p(6), p(7), p(8), p(9), isVPDN, isDirect, p(11),
+        p(12), p(13), p(14), p(15), p(16), p(17), p(18), p(19), p(20), p(21), p(22), p(23), internetType, vpdnOnly, isCommon)
     } catch {
       case e: Exception =>
         logError("ParseError log[" + line + "] msg[" + e.getMessage + "]")

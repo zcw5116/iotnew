@@ -58,7 +58,8 @@ object CDRRealtimeAnalysis extends Logging{
 
     import sqlContext.implicits._
 
-    val vpnToApnDF  = sqlContext.read.format("text").load(vpnToApnMapFile).map(x=>x.getString(0).split(",")).map(x=>(x(0),x(1))).toDF("vpdndomain","apn")
+    val vpnToApnDF  = sqlContext.read.format("text").load(vpnToApnMapFile).
+      map(x=>x.getString(0).split(",")).map(x=>(x(0),x(1))).toDF("vpdndomain","apn")
     val vpdnAndApnTable = "vpdnAndApnTable"
     vpnToApnDF.registerTempTable(vpdnAndApnTable)
 

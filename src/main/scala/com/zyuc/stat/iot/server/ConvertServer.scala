@@ -12,7 +12,7 @@ import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
 import com.zyuc.stat.app.{FileManage, HDFSFiles}
 import com.zyuc.stat.epc.etl.{EpcGwEtl, EpcMmeEtl}
 import com.zyuc.stat.iot.etl.CDRETL.doJob
-import com.zyuc.stat.iot.etl.{CDRETL, MMELogETL, SMSCETL}
+import com.zyuc.stat.iot.etl.{CDRETL, MMELogETL, MMELogETL_New, SMSCETL}
 import com.zyuc.stat.iot.smsc.SMSCAnalysis
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.hadoop.fs.FileSystem
@@ -72,6 +72,10 @@ object ConvertServer {
             val ztsmWildcard = Params.getString("ztsmWildcard")
             serverInfo = "未知异常"
             serverInfo = MMELogETL.doJob(sqlContext, fileSystem, appName, loadTime, inputPath, outputPath, hwmmWildcard, hwsmWildcard, ztmmWildcard, ztsmWildcard)
+          }
+          else if (serverLine == "mmeETL_New") {
+            serverInfo = "未知异常"
+            serverInfo = MMELogETL_New.doJob(sqlContext, fileSystem, Params)
           } else if (serverLine == "cdrETL") {
             val appName = Params.getString("appName")
             val loadTime = Params.getString("loadTime")

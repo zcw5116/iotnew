@@ -10,6 +10,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.hadoop.io.IOUtils
 import org.apache.spark.Logging
+import org.apache.spark.deploy.SparkHadoopUtil
 
 import scala.collection.mutable
 
@@ -168,12 +169,12 @@ object FileUtils extends Logging {
       // fileSystem.delete(dataPath, false)
       fileSystem
     })
-
+    
     val tmpPath = new Path(outputPath + "temp/" + loadTime + template + "/*.orc")
     val tmpStatus = fileSystem.globStatus(tmpPath)
 
     var num = 0
-    tmpStatus.map(tmpStat => {
+    tmpStatus.foreach(tmpStat => {
       val tmpLocation = tmpStat.getPath().toString
       var dataLocation = tmpLocation.replace(outputPath + "temp/" + loadTime, outputPath + "data/")
       val index = dataLocation.lastIndexOf("/")
@@ -185,7 +186,10 @@ object FileUtils extends Logging {
 
       if (!fileSystem.exists(dataPath.getParent)) {
         fileSystem.mkdirs(dataPath.getParent)
+        println("mkdirs:" + outputPath)
       }
+      
+      println("rename:" + s"$tmpPath to $outputPath")
       fileSystem.rename(tmpPath, dataPath)
     })
   }
@@ -341,6 +345,29 @@ object FileUtils extends Logging {
     val destPath = new Path(destLocation)
     val isRename = fileSystem.rename(srcPath, destPath)
     isRename
+  }
+  
+  /**
+    * desc: 根据通配符查询HDFS上的文件信息
+    *
+    * @author maoheng
+    * @param fileSystem     hdfs文件系统
+    * @param fileWildcard   文件通配符
+    */
+   def getFilesByWildcard(fileSystem: FileSystem, fileWildcard: String): Array[FileStatus] = {
+	   fileSystem.globStatus(new Path(fileWildcard))
+  }
+  
+  /**
+    * desc: 根据目录清理HDFS上的文件
+    *
+    * @author maoheng
+    * @param fileSystem   hdfs文件系统
+    * @param pathName     目录名
+    */
+  def cleanFilesByPath(fileSystem: FileSystem, pathName: String): Unit = {
+    SparkHadoopUtil.get.globPath(new Path(pathName)).map(fileSystem.delete(_, true))
+    SparkHadoopUtil.get.globPath(new Path(pathName)).map(fileSystem.delete(_, false))
   }
 
 

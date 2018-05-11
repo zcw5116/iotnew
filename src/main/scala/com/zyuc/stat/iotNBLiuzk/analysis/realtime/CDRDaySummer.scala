@@ -30,10 +30,13 @@ object CDRDaySummer {
     val df = sqlContext.read.format("orc").load(inputPath + partitionPath)
       .selectExpr("t800","t801","t804","l_datavolumefbcuplink","l_datavolumefbcdownlink","substr(servedimeisv,1,8) as tac")
       .registerTempTable("CDRTempTable")
+
     import sqlContext.implicits._
     sc.textFile("/user/epciot/data/basic/IOTTerminal/iotterminal.csv")
       .filter(!_.contains("This is a Test IMEI")).map(line=>line.split(",\"",5)).map(x=>(x(0),x(1),x(2),x(3),x(4)))
       .toDF("tac","x1","x2","x3", "devtype").registerTempTable("IOTTerminalTable")
+
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo/").registerTempTable("AllUserTable")
 
 /*    val sql1 =
       s"""
@@ -48,10 +51,11 @@ object CDRDaySummer {
          |select '${dd}' as summ_cycle, a.cust_id,
          |c.t800 as province, c.t801 as city, c.t804, i.devtype
          |sum(c.l_datavolumefbcuplink) as INFLOW , sum(c.l_datavolumefbcdownlink) as OUTFLOW,
-         |(sum(c.l_datavolumefbcuplink) + sum(c.l_datavolumefbcdownlink)) as TOTALFLOW
+         |(sum(c.l_datavolumefbcuplink) + sum(c.l_datavolumefbcdownlink)) as TOTALFLOW,
+         |count(distinct mdn) as ACTIVEUSERS ,count(chargingid) as SESSIONS
          |from
          |CDRTempTable c
-         |inner join
+         |left join
          |IOTTerminalTable i
          |on c.tac=i.tac
          |inner join
@@ -62,7 +66,7 @@ object CDRDaySummer {
        """.stripMargin
 
     sqlContext.sql(sql)
-      .coalesce(1).write.mode(SaveMode.Overwrite).format("orc")
+      .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
 
 

@@ -21,32 +21,41 @@ object MMERealtimeM5Analysis {
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 
     val d = datatime.substring(2, 8)
-    val dd = datatime.substring(0, 8)
     val h = datatime.substring(8, 10)
     val m5 = datatime.substring(10, 12)
     val partitionPath = s"/d=$d/h=$h/m5=$m5"
+    val dd = datatime.substring(0, 8)
+    val hm5 = datatime.substring(8, 12)
 
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
+    sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/IotBSInfo/data/").registerTempTable("IOTBSInfo")
 
-    val df = sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
     val sql =
       s"""
-         |select '${datatime}' as gather_cycle, '${dd}' as gather_date, '${h}+${m5}' as gather_time,
-         |a.cust_id, m.t800 as province, m.t801 as city,
+         |select '${datatime}' as gather_cycle, '${dd}' as gather_date, '${hm5}' as gather_time,
+         |a.cust_id, i.provname as province, i.cityname as city,
          |count(*) as REQS ,
-         |sum(case when m.result="failed" then 1 else 0 end) as FAILREQS ,
-         |count(distinct (case when result = 'failed' then MSISDN else '' end)) as FAILUSERS
+         |sum(case when m.result='failed' then 1 else 0 end) as FAILREQS ,
+         |count(distinct (case when m.result = 'failed' then MSISDN else '' end)) as FAILUSERS
          |from
          |MMETempTable m
+         |left join
+         |IOTBSInfo i
+         |on m.enbid=i.enbid //on prov==
          |inner join
          |AllUserTable a
-         |on a.---=m.---//////
-         |group by a.cust_id, c.t800, c.t801
-         |GROUPING SETS(a.cust_id,(a.cust_id, c.t800),(a.cust_id, c.t800, c.t801 ))
+         |on a.mdn=m.msisdn
+         |group by a.cust_id, i.provname, i.cityname
+         |GROUPING SETS(a.cust_id,(a.cust_id, i.provname),(a.cust_id, i.provname, i.cityname))
        """.stripMargin
 
     sqlContext.sql(sql)
-      .coalesce(1).write.mode(SaveMode.Overwrite).format("orc")
+      .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
+
+    //---
+
   }
 
 }

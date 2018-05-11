@@ -21,15 +21,18 @@ object CDRRealtimeM5Analysis {
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 
     val d = datatime.substring(2, 8)
-    val dd = datatime.substring(0, 8)
     val h = datatime.substring(8, 10)
     val m5 = datatime.substring(10, 12)
     val partitionPath = s"/d=$d/h=$h/m5=$m5"
+    val dd = datatime.substring(0, 8)
+    val hm5 = datatime.substring(8, 12)
 
-    val df = sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("CDRTempTable")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
+    sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("CDRTempTable")
+
     val sql =
       s"""
-         |select '${datatime}' as gather_cycle, '${dd}' as gather_date, '${h}+${m5}' as gather_time,
+         |select '${datatime}' as gather_cycle, '${dd}' as gather_date, '${hm5}' as gather_time,
          |a.cust_id, c.t801 as city, c.t800 as province,
          |sum(c.l_datavolumefbcuplink) as INFLOW , sum(c.l_datavolumefbcdownlink) as OUTFLOW,
          |(sum(c.l_datavolumefbcuplink) + sum(c.l_datavolumefbcdownlink)) as TOTALFLOW
@@ -37,14 +40,17 @@ object CDRRealtimeM5Analysis {
          |CDRTempTable c
          |inner join
          |AllUserTable a
-         |on c.--- = a.-----//////imsi
+         |on c.mdn = a.mdn
          |group by a.cust_id, c.t800, c.t801
          |GROUPING SETS(a.cust_id,(a.cust_id, c.t800),(a.cust_id, c.t800, c.t801 ))
        """.stripMargin
 
     sqlContext.sql(sql)
-      .coalesce(1).write.mode(SaveMode.Overwrite).format("orc")
+      .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
+
+    //----
+
   }
 
 }

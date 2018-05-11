@@ -26,15 +26,16 @@ object MMEDaySummer {
     //val m5 = loadTime.substring(10, 12)
     val partitionPath = s"/d=$d/h=*/m5=*"
 
-    val df = sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
+    sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
     sqlContext.read.format("orc").load("/user/epciot/data/basic/IotBSInfo/data/").registerTempTable("IOTBSInfo")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
 
     val sql =
       s"""
-         |select '${dd}' as summ_cycle, a.cust_id, i.provname as province, i.cityname as city,i.zhlabel,
+         |select '${dd}' as summ_cycle, a.cust_id, i.provname as province, i.cityname as city, i.enbid, m.T13,
          |count(*) as REQS ,
-         |sum(case when m.result="failed" then 1 else 0 end) as FAILREQS ,
-         |count(distinct (case when result = 'failed' then MSISDN else '' end)) as FAILUSERS
+         |sum(case when m.result='failed' then 1 else 0 end) as FAILREQS ,
+         |count(distinct (case when m.result = 'failed' then MSISDN else '' end)) as FAILUSERS
          |from
          |MMETempTable m
          |inner join
@@ -43,12 +44,13 @@ object MMEDaySummer {
          |inner join
          |AllUserTable a
          |on a.mdn=m.msisdn
-         |group by a.cust_id, c.t800, c.t801, i.zhlabel
-         |GROUPING SETS(a.cust_id,(a.cust_id, c.t800),(a.cust_id, c.t800, c.t801 ),(a.cust_id, c.t800, c.t801,i.zhlabel))
+         |group by a.cust_id, i.provname, i.cityname, i.enbid, m.T13
+         |GROUPING SETS(a.cust_id,(a.cust_id, i.provname),(a.cust_id, i.provname, i.cityname ),
+         |(a.cust_id, i.provname, i.cityname, i.enbid),(a.cust_id, i.provname, i.cityname, i.enbid, m.T13))
        """.stripMargin
 
     sqlContext.sql(sql)
-      .coalesce(1).write.mode(SaveMode.Overwrite).format("orc")
+      .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
 
   }

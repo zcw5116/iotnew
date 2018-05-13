@@ -38,7 +38,8 @@ object CustUser {
     // 加载用户表
     val userInputDF = sc.textFile(inputfiles).map(x=>x.split("\\|")).filter(_.length==26).
       map(x=>(x(0), x(1), x(2), x(3), x(19), x(20), x(21), x(22), x(23), x(24), x(25))).
-      toDF("mdn", "cdmaimsi", "lteimsi", "imei", "belocity", "beloprov", "stat", "custtype", "prodtype", "vpdnblock", "custid")
+      toDF("mdn", "cdmaimsi", "lteimsi", "imei", "belocity", "beloprov",
+        "stat", "custtype", "prodtype", "vpdnblock", "custid")
     val usertmpTable = "usertmp"
     userInputDF.registerTempTable(usertmpTable)
     sqlContext.sql("select mdn, substr(u.mdn, 3, 9) from usertmp u").show()

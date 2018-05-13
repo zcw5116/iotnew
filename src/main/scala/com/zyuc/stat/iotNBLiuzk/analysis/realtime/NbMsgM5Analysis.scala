@@ -3,22 +3,22 @@ package com.zyuc.stat.iotNBLiuzk.analysis.realtime
 import com.zyuc.iot.utils.DbUtils
 import com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by zhoucw on 18-5-11 下午10:29.
   */
-object NbCdrM5Analysis {
+object NbMsgM5Analysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NbM5Analysis_201805101400")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/cdr/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/cdr/analy_realtime/nb")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/msg/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/msg/analy_realtime/nb")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
@@ -53,19 +53,23 @@ object NbCdrM5Analysis {
     val nbTable = "spark_nb"
     sqlContext.sql(
       s"""
-         |select u.custid, n.prov, n.city,
-         |       n.l_datavolumefbcuplink as upflow,
-         |       n.l_datavolumefbcdownlink as downflow
+         |select u.custid,
+         |       'r' type, u.mdn
          |from ${nbM5Table} n, ${userTable} u
-         |where n.mdn = u.mdn
+         |where n.called_number = u.mdn
+         |union all
+         |select u.custid,
+         |       's' type, u.mdn
+         |from ${nbM5Table} n, ${userTable} u
+         |where n.calling_number = u.mdn
        """.stripMargin).registerTempTable(nbTable)
 
     // 统计分析
      val resultStatDF = sqlContext.sql(
        s"""
-          |select custid, prov, city, sum(upflow) as upflow, sum(downflow) as downflow
+          |select custid, type, count(*) as msgnum
           |from ${nbTable}
-          |group by custid, prov, city
+          |group by custid, type
         """.stripMargin)
 
     val resultDF = resultStatDF.
@@ -129,9 +133,9 @@ object NbCdrM5Analysis {
     pstmt.close()
     dbConn.close()
 
+
     // 更新断点时间
     CommonUtils.updateBreakTable("iot_ana_5min_nb_cdr", dataTime+"00")
-
 
   }
 }

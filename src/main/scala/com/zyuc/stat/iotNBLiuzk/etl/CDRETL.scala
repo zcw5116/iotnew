@@ -17,13 +17,13 @@ object CDRETL extends Logging{
 
   def main(args: Array[String]): Unit = {
 
-    val sparkConf = new SparkConf().setMaster("local[4]").setAppName("fd")
+    val sparkConf = new SparkConf().setMaster("local[3]").setAppName("fd")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
-    val loadTime = "201708071205"
-    val inputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pdsn/srcdata/"
-    val outputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/output/pdsn/"
+    val loadTime = "201805111638"
+    val inputPath = "hdfs://inmnmbd02:8020/user/epciot/data/cdr/src/nb/"
+    val outputPath = "hdfs://inmnmbd02:8020/user/epciot/data/cdr/transform/nb/"
 
     //val inputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/srcdata/"
     //val outputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/output/"

@@ -27,7 +27,7 @@ object MMERealtimeM5Analysis {
     val dd = datatime.substring(0, 8)
     val hm5 = datatime.substring(8, 12)
 
-    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo/").registerTempTable("AllUserTable")
     sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
     sqlContext.read.format("orc").load("/user/epciot/data/basic/IotBSInfo/data/").registerTempTable("IOTBSInfo")
 
@@ -42,7 +42,7 @@ object MMERealtimeM5Analysis {
          |MMETempTable m
          |left join
          |IOTBSInfo i
-         |on m.enbid=i.enbid //on prov==
+         |on m.enbid=i.enbid and m.province=i.provname
          |inner join
          |AllUserTable a
          |on a.mdn=m.msisdn

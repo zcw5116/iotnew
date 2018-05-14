@@ -28,7 +28,7 @@ object MMEDaySummer {
 
     sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("MMETempTable")
     sqlContext.read.format("orc").load("/user/epciot/data/basic/IotBSInfo/data/").registerTempTable("IOTBSInfo")
-    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo/").registerTempTable("AllUserTable")
 
     val sql =
       s"""

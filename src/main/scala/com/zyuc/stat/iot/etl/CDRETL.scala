@@ -30,17 +30,17 @@ object CDRETL extends Logging{
     //val inputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/srcdata/"
     //val outputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/output/"
 
-    val appName = "pdsn_" + loadTime
-   val fileWildcard = "*AAA*"
-    //val fileWildcard = "*dat"
+    val appName = "pgw_" + loadTime
+    //val fileWildcard = "*AAA*"
+    val fileWildcard = "*dat"
 
     val coalesceSize = 128
 
-    val logType = "pdsn"
-    //val logType = "pgw"
+    //val logType = "pdsn"
+    val logType = "pgw"
 
-    val logTableName = "iot_cdr_data_pdsn"
-    //val logTableName = "iot_cdr_data_pgw"
+    //val logTableName = "iot_cdr_data_pdsn"
+    val logTableName = "iot_cdr_data_pgw"
 
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 

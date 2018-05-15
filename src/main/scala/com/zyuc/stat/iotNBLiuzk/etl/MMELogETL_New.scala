@@ -168,15 +168,15 @@ object MMELogETL_New extends Logging{
 			  |{
 			  | "appName"      : "MHTEST",
 			  | "loadTime"     : "201805091509",
-			  | "inputPath"    : "hdfs://inmnmbd02:8020/user/epciot/data/mme/src/nb",
-			  | "outputPath"   : "hdfs://inmnmbd02:8020/user/epciot/data/cdr/transform/nb",
+			  | "inputPath"    : "hdfs://spark1234:8020/user/epciot/data/mme/src/nb",
+			  | "outputPath"   : "hdfs://spark1234:8020/user/epciot/data/mme/transform/nb",
 			  | "hwmmWildcard" : "HuaweiUDN-MM",
 			  | "hwsmWildcard" : "HuaweiUDN-SM",
 			  | "ztmmWildcard" : "sgsnmme_mm",
 			  | "ztsmWildcard" : "sgsnmme_sm",
 				| "ermmWildcard" : "er_mm",
 				| "ersmWildcard" : "er_sm",
-			  | "provinceList" : "GSS,ZJ"
+			  | "provinceList" : "GSS"
 			  |}
 			""".stripMargin
 		//provinceList

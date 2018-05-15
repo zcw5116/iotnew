@@ -16,9 +16,9 @@ object MMERealtimeM5Analysis {
 
     val appName = sc.getConf.get("spark.app.name","name_MMERealtimeM5Analysis")
     val datatime = sc.getConf.get("spark.app.datatime","201805101400")
-    val inputPath = "hdfs://inmnmbd02:8020/user/epciot/data/mme/transform/nb/data"
-    val outputPath = "hdfs://inmnmbd02:8020/user/epciot/data/mme/analy_realtime/nb"
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+    val inputPath = "hdfs://spark1234:8020/user/epciot/data/mme/transform/nb/data"
+    val outputPath = "hdfs://spark1234:8020/user/epciot/data/mme/analy_realtime/nb"
+    //sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 
     val d = datatime.substring(2, 8)
     val h = datatime.substring(8, 10)
@@ -37,7 +37,7 @@ object MMERealtimeM5Analysis {
          |a.cust_id, i.provname as province, i.cityname as city,
          |count(*) as REQS ,
          |sum(case when m.result='failed' then 1 else 0 end) as FAILREQS ,
-         |count(distinct (case when m.result = 'failed' then MSISDN else '' end)) as FAILUSERS
+         |count(distinct (case when m.result = 'failed' then m.MSISDN else '' end)) as FAILUSERS
          |from
          |MMETempTable m
          |left join

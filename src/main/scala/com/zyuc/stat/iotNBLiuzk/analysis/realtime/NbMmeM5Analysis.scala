@@ -13,7 +13,7 @@ import org.apache.spark.sql.hive.HiveContext
 
 object NbMmeM5Analysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NBM5Analysis_201805041530")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NBM5Analysis_201805041530")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 

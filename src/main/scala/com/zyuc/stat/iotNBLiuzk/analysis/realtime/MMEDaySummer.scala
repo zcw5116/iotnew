@@ -149,10 +149,7 @@ object MMEDaySummer {
     pstmt.executeBatch
     dbConn.commit()
     pstmt.close()
-    dbConn.close()
-
-    // 更新断点时间
-    CommonUtils.updateBreakTable("iot_ana_nb_data_summMME_d", dataTime+"00")*/
+    dbConn.close()*/
 
   }
 

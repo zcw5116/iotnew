@@ -54,7 +54,7 @@ object MMERealtimeM5Analysis {
       .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
 
-    //---
+    //----
 
   }
 

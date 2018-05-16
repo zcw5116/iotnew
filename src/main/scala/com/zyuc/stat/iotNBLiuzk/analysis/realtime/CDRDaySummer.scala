@@ -120,7 +120,7 @@ object CDRDaySummer {
     val sessionsDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "SESSIONS as meas_value").
       withColumn("meas_obj", lit("SESSIONS"))
 
-    // 将结果写入到hdfs
+    // 将结果写入到 hdfs
     val outputResult = outputPath + dayPath
     inflowDF4.unionAll(inflowDF3).unionAll(inflowDF2).unionAll(inflowDF1)
       .unionAll(outflowDF4).unionAll(outflowDF3).unionAll(outflowDF2).unionAll(outflowDF1)

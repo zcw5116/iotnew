@@ -66,7 +66,7 @@ object MMEDaySummer {
          |group by u.custid, i.provname, i.cityname, i.enbid, m.pcause
        """.stripMargin
 
-    //val rowTable = "rowtable"
+    // val rowTable = "rowtable"
     val resultDF = sqlContext.sql(sqlDayAll)//.registerTempTable(rowTable)
 
     val reqsDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","pcause", "REQS as meas_value").

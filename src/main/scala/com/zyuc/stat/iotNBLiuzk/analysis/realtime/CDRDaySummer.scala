@@ -56,7 +56,7 @@ object CDRDaySummer {
     val sqlDayAll =
       s"""
          |select '${dd}' as summ_cycle, u.custid,
-         |c.prov, c.city, c.t804 as enbid, i.devtype as TERMDETAIL,
+         |c.prov, c.city, c.enbid, i.devtype as TERMDETAIL,
          |sum(c.l_datavolumefbcuplink) as INFLOW , sum(c.l_datavolumefbcdownlink) as OUTFLOW,
          |(sum(c.l_datavolumefbcuplink) + sum(c.l_datavolumefbcdownlink)) as TOTALFLOW,
          |count(distinct mdn) as ACTIVEUSERS ,count(chargingid) as SESSIONS
@@ -68,7 +68,7 @@ object CDRDaySummer {
          |inner join
          |${userTable} u
          |on c.mdn = u.mdn
-         |group by u.custid, c.prov, c.city, c.t804, i.devtype
+         |group by u.custid, c.prov, c.city, c.enbid, i.devtype
        """.stripMargin
 
     //注册为临时表 再select -- as --  union on ---??

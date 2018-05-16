@@ -27,7 +27,7 @@ object CDRRealtimeM5Analysis {
     val dd = datatime.substring(0, 8)
     val hm5 = datatime.substring(8, 12)
 
-    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo").registerTempTable("AllUserTable")
+    sqlContext.read.format("orc").load("/user/epciot/data/basic/AllUserInfo/").registerTempTable("AllUserTable")
     sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable("CDRTempTable")
 
     val sql =
@@ -49,7 +49,11 @@ object CDRRealtimeM5Analysis {
       .repartition(20).write.mode(SaveMode.Overwrite).format("orc")
       .save(outputPath + partitionPath)
 
-    //----
+    //----从表中 根据tablename 取LASTCYCLE + CURRCYCLE  与datatime比较--更新--upset
+
+    //select last curr from breakpoint where tablename=cdr
+    //  if ---
+
 
   }
 

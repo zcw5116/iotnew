@@ -17,7 +17,7 @@ import scala.collection.mutable
 object MMELogETL_New extends Logging{
 	def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
 		val sqlContext = parentContext.newSession()
-		sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+		//sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 		
 		val appName      = params.getString("appName")
 		val loadTime     = params.getString("loadTime")
@@ -111,7 +111,7 @@ object MMELogETL_New extends Logging{
 			// 维护HIVE表,判断是否要增加分区
 			val hiveTab = "iot_mme_log"
 			
-			chkHiveTabPartition(sqlContext, hiveTab, fileParSet)
+			//chkHiveTabPartition(sqlContext, hiveTab, fileParSet)
 		} catch {
 			case e: Exception =>
 				e.printStackTrace()
@@ -161,22 +161,22 @@ object MMELogETL_New extends Logging{
 		val sc = new SparkContext(sparkConf)
 		val sqlContext = new HiveContext(sc)
 		
-		sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+		//sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 		
 		val paramsString: String =
 			"""
 			  |{
 			  | "appName"      : "MHTEST",
-			  | "loadTime"     : "20180411",
-			  | "inputPath"    : "hdfs://MH-VM:8020/mhtest/mmelog/src",
-			  | "outputPath"   : "hdfs://MH-VM:8020/mhtest/mmelog/output",
+			  | "loadTime"     : "201805091509",
+			  | "inputPath"    : "hdfs://spark1234:8020/user/epciot/data/mme/src/nb",
+			  | "outputPath"   : "hdfs://spark1234:8020/user/epciot/data/mme/transform/nb",
 			  | "hwmmWildcard" : "HuaweiUDN-MM",
 			  | "hwsmWildcard" : "HuaweiUDN-SM",
 			  | "ztmmWildcard" : "sgsnmme_mm",
 			  | "ztsmWildcard" : "sgsnmme_sm",
 				| "ermmWildcard" : "er_mm",
 				| "ersmWildcard" : "er_sm",
-			  | "provinceList" : "js,ah, zj"
+			  | "provinceList" : "GSS"
 			  |}
 			""".stripMargin
 		//provinceList

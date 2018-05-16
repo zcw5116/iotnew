@@ -3,7 +3,7 @@ package com.zyuc.stat.iot.etl
 import com.zyuc.stat.properties.ConfigProperties
 import com.zyuc.stat.iot.etl.util.MMEConverterUtils
 import com.zyuc.stat.utils.FileUtils
-import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.{Logging, SparkConf, SparkContext}
 import com.alibaba.fastjson.{JSON, JSONObject}
@@ -27,13 +27,18 @@ object MMELogETL_New extends Logging{
 		val hwsmWildcard = params.getString("hwsmWildcard")
 		val ztmmWildcard = params.getString("ztmmWildcard")
 		val ztsmWildcard = params.getString("ztsmWildcard")
+		val ermmWildcard = params.getString("ermmWildcard")
+		val ersmWildcard = params.getString("ersmWildcard")
+
 		val provinceArr  = params.getString("provinceList").split(" |,")
 		
 		val wildcardMap: mutable.Map[String, String] = mutable.Map()
-		wildcardMap += (hwmmWildcard -> MMEConverterUtils.MME_HWMM_TYPE)
-		wildcardMap += (hwsmWildcard -> MMEConverterUtils.MME_HWSM_TYPE)
-		wildcardMap += (ztmmWildcard -> MMEConverterUtils.MME_ZTMM_TYPE)
-		wildcardMap += (ztsmWildcard -> MMEConverterUtils.MME_ZTSM_TYPE)
+		wildcardMap += (hwmmWildcard -> MMEConverterUtils.NB_MME_HWMM_TYPE)
+		wildcardMap += (hwsmWildcard -> MMEConverterUtils.NB_MME_HWSM_TYPE)
+		wildcardMap += (ztmmWildcard -> MMEConverterUtils.NB_MME_ZTMM_TYPE)
+		wildcardMap += (ztsmWildcard -> MMEConverterUtils.NB_MME_ZTSM_TYPE)
+		wildcardMap += (ermmWildcard -> MMEConverterUtils.NB_MME_ERMM_TYPE)
+		wildcardMap += (ersmWildcard -> MMEConverterUtils.NB_MME_ERSM_TYPE)
 		
 		var unionDF: DataFrame = null
 		var findFile: Boolean = false
@@ -126,6 +131,7 @@ object MMELogETL_New extends Logging{
 		
 		s"appName: $appName: ETL Success. "
 	}
+
 	
 	def chkHiveTabPartition(sqlContext: SQLContext, hiveTab: String,
 	                        fileParSet: mutable.HashSet[String]): Unit = {
@@ -148,6 +154,7 @@ object MMELogETL_New extends Logging{
 			}
 		})
 	}
+
 	
 	def main(args: Array[String]): Unit = {
 		val sparkConf = new SparkConf().setMaster("local[2]").setAppName("mh_testMME")
@@ -165,11 +172,17 @@ object MMELogETL_New extends Logging{
 			  | "outputPath"   : "hdfs://MH-VM:8020/mhtest/mmelog/output",
 			  | "hwmmWildcard" : "HuaweiUDN-MM",
 			  | "hwsmWildcard" : "HuaweiUDN-SM",
-			  | "ztmmWildcard" : "sgsnmme_mm-mm",
-			  | "ztsmWildcard" : "sgsnmme_mm-sm",
+			  | "ztmmWildcard" : "sgsnmme_mm",
+			  | "ztsmWildcard" : "sgsnmme_sm",
+				| "ermmWildcard" : "er_mm",
+				| "ersmWildcard" : "er_sm",
 			  | "provinceList" : "js,ah, zj"
 			  |}
 			""".stripMargin
+		//provinceList
+		//GX,GZ,HaiN,HUN,SC,YN,CQ,AH,AHH,AHHH,AHHHH,AHHHHH,FJ,JX,HLJ,LN,NM1,NM2,SD,TJ
+		//BJ,GD,GDD,GDDD,GDDDD,GDDDDD,HB,HN,HUB,JL,NX,QH,XZ,XJ,JS,JSS,SHANX,SH
+		//SX,SXX,GS,GSS,ZJ,ZJJ,ZJJJ,ZJJJJ
 		val params = JSON.parseObject(paramsString)
 		val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 		val rst = doJob(sqlContext, fileSystem, params)

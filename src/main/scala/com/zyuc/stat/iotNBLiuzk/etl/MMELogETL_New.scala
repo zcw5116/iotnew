@@ -109,8 +109,7 @@ object MMELogETL_New extends Logging{
 			FileUtils.moveTempFiles(fileSystem, outputPath+"/", loadTime, getTemplet, fileParSet)
 			
 			// 维护HIVE表,判断是否要增加分区
-			val hiveTab = "iot_mme_log"
-			
+			//val hiveTab = "iot_mme_log"
 			//chkHiveTabPartition(sqlContext, hiveTab, fileParSet)
 		} catch {
 			case e: Exception =>
@@ -157,7 +156,7 @@ object MMELogETL_New extends Logging{
 
 	
 	def main(args: Array[String]): Unit = {
-		val sparkConf = new SparkConf().setMaster("local[2]").setAppName("mh_testMME")
+		val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("mh_testMME")
 		val sc = new SparkContext(sparkConf)
 		val sqlContext = new HiveContext(sc)
 		
@@ -168,8 +167,8 @@ object MMELogETL_New extends Logging{
 			  |{
 			  | "appName"      : "MHTEST",
 			  | "loadTime"     : "201805091509",
-			  | "inputPath"    : "hdfs://spark1234:8020/user/epciot/data/mme/src/nb",
-			  | "outputPath"   : "hdfs://spark1234:8020/user/epciot/data/mme/transform/nb",
+			  | "inputPath"    : "hdfs://nameservice1/user/epciot/data/mme/src/nb",
+			  | "outputPath"   : "hdfs://nameservice1/user/epciot/data/mme/transform/nb",
 			  | "hwmmWildcard" : "HuaweiUDN-MM",
 			  | "hwsmWildcard" : "HuaweiUDN-SM",
 			  | "ztmmWildcard" : "sgsnmme_mm",

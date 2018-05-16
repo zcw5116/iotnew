@@ -1,122 +1,128 @@
 package com.zyuc.stat.iotNBLiuzk.etl
 
-import com.zyuc.stat.iot.etl.util.{CDRConverterUtils, CommonETLUtils}
+import com.alibaba.fastjson.{JSON, JSONObject}
+import com.zyuc.stat.iot.etl.util.CDRConverterUtils
 import com.zyuc.stat.properties.ConfigProperties
-import com.zyuc.stat.utils.FileUtils.{makeCoalesce, renameHDFSDir}
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.io.{LongWritable, Text}
-import org.apache.hadoop.mapred.TextInputFormat
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.hive.HiveContext
+import com.zyuc.stat.utils.FileUtils
+import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.{Logging, SparkConf, SparkContext}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.hive.HiveContext
+
+import scala.collection.mutable
 
 /**
-  * Created by zhoucw on 17-8-7.
+  * Created by maoheng on  2018/5/9 15:38
   */
 object CDRETL extends Logging{
+  def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
+    val sqlContext = parentContext.newSession()
+    //sqlContext.sql("use +" + ConfigProperties.IOT_HIVE_DATABASE)
+
+    val appName = params.getString("appName")
+    val loadTime = params.getString("loadTime")
+    val inputPath = params.getString("inputPath")
+    val outputPath = params.getString("outputPath")
+    val fileWildcard = params.getString("fileWildcard")
+
+    var dataDF: DataFrame = null
+    val partitionArr = Array("d", "h", "m5")
+
+    def getTemplet: String = {
+      var templet = ""
+      partitionArr.foreach(par => {
+        templet = templet + "/" + par + "=*"
+      })
+      templet
+    }
+
+    val dirTodo = inputPath + "/" + loadTime
+    val dirDoing = inputPath + "/" + loadTime + "_doing"
+    val dirDone = inputPath + "/" + loadTime + "_done"
+    var isRenamed: Boolean = false
+    var result: String = null
+
+    // 目录改名为doing后缀
+    isRenamed = FileUtils.renameHDFSDir(fileSystem, dirTodo, dirDoing)
+    result = if (isRenamed) "Success" else "Failed"
+    logInfo(s"$result to rename $dirTodo to $dirDoing")
+    if (!isRenamed) {
+      return s"appName: $appName: $result to rename $dirTodo to $dirDoing"
+    }
+
+    try {
+      val location = dirDoing + "/" + fileWildcard
+
+      if (FileUtils.getFilesByWildcard(fileSystem, location).length > 0) {
+        val fileDF = sqlContext.read.format("json").load(location)
+        dataDF = CDRConverterUtils.parse(fileDF, CDRConverterUtils.LOG_TYPE_PGW)
+      }
+      else {
+        logInfo(s"No file found during time: $loadTime")
+        // 目录改名为done后缀
+        FileUtils.renameHDFSDir(fileSystem, dirDoing, dirDone)
+        return s"appName: $appName: No file found from path $inputPath"
+      }
+
+      val tempDestDir = outputPath + "/temp/" + loadTime
+
+      logInfo(s"Write data into $tempDestDir")
+
+      dataDF.coalesce(1).write.mode(SaveMode.Overwrite).format("orc").partitionBy(partitionArr: _*)
+        .save(tempDestDir)
+
+      val fileParSet = new mutable.HashSet[String]()
+
+      FileUtils.getFilesByWildcard(fileSystem, tempDestDir + getTemplet + "/*.orc")
+        .foreach(outFile => {
+          val tmpPath = outFile.getPath.toString
+          val filePar = tmpPath.substring(0, tmpPath.lastIndexOf("/"))
+            .replace(tempDestDir, "").substring(1)
+
+          fileParSet.+=(filePar)
+        })
+
+      logInfo(s"Move temp files")
+      FileUtils.moveTempFiles(fileSystem, outputPath + "/", loadTime, getTemplet, fileParSet)
+
+      // 维护HIVE表,判断是否要增加分区
+      //            val hiveTab = "xxxx"
+      //            chkHiveTabPartition(sqlContext, hiveTab, fileParSet)
+
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        val cleanPath = outputPath + "/temp/" + loadTime
+        FileUtils.cleanFilesByPath(fileSystem, cleanPath)
+        logError(s"[$appName] 失败  处理异常" + e.getMessage)
+        s"appName: $appName: ETL Failed. "
+    }
+
+    // 目录改名为done后缀
+    isRenamed = FileUtils.renameHDFSDir(fileSystem, dirDoing, dirDone)
+    result = if (isRenamed) "Success" else "Failed"
+    logInfo(s"$result to rename $dirDoing to $dirDone")
+
+    s"appName: $appName: ETL Success. "
+  }
 
   def main(args: Array[String]): Unit = {
-
-    val sparkConf = new SparkConf().setMaster("local[3]").setAppName("fd")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("mh_testCDR")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
-    val loadTime = "201805111638"
-    val inputPath = "hdfs://inmnmbd02:8020/user/epciot/data/cdr/src/nb/"
-    val outputPath = "hdfs://inmnmbd02:8020/user/epciot/data/cdr/transform/nb/"
-
-    //val inputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/srcdata/"
-    //val outputPath = "hdfs://cdh-nn1:8020/hadoop/IOT/data/cdr/pgw/output/"
-
-    val appName = "pgw_" + loadTime
-    //val fileWildcard = "*AAA*"
-    val fileWildcard = "*dat"
-
-    val coalesceSize = 128
-
-    //val logType = "pdsn"
-    val logType = "pgw"
-
-    //val logTableName = "iot_cdr_data_pdsn"
-    val logTableName = "iot_cdr_data_pgw"
-
+    val paramString: String =
+      """
+        |{
+        | "appName"      : "mh_testCDR",
+        | "loadTime"     : "201805161538",
+        | "inputPath"    : "hdfs://nameservice1/user/epciot/data/cdr/src/nb",
+        | "outputPath"   : "hdfs://nameservice1/user/epciot/data/cdr/transform/nb",
+        | "fileWildcard" : "*"
+        |}
+      """.stripMargin
+    val params = JSON.parseObject(paramString)
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
-
-    doJob(sqlContext, fileSystem, appName, loadTime, inputPath, outputPath, fileWildcard, coalesceSize, logType, logTableName)
-
-  }
-
-  def doJob(parentContext: SQLContext, fileSystem:FileSystem, appName:String, loadTime:String, inputPath:String, outputPath:String, fileWildcard:String, coalesceSize:Int, logType:String, logTableName:String):String = {
-    val sqlContext = parentContext.newSession()
-    val sc = parentContext.sparkContext
-
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
-    if (logType != CDRConverterUtils.LOG_TYPE_HACCG && logType != CDRConverterUtils.LOG_TYPE_PDSN && logType != CDRConverterUtils.LOG_TYPE_PGW) {
-      val logTypeErr = "[" + appName + "] 日志类型authlogType错误, 期望值： " + CDRConverterUtils.LOG_TYPE_HACCG + "," + CDRConverterUtils.LOG_TYPE_PDSN + "," + CDRConverterUtils.LOG_TYPE_PGW
-      logError(logTypeErr)
-      return logTypeErr
-    }
-
-
-    val srcLocation = inputPath + "/" + loadTime
-
-    val fileExists = if (fileSystem.globStatus(new Path(srcLocation + "/*")).length > 0) true else false
-    if (!fileExists) {
-      logInfo(s"$srcLocation not exists.")
-      return s"$srcLocation not exists."
-    }
-
-    val srcDoingLocation = inputPath + "/" + loadTime + "_doing"
-    val isRename = renameHDFSDir(fileSystem, srcLocation, srcDoingLocation)
-    var result = "Success"
-    if (!isRename) {
-      result = "Failed"
-      logInfo(s"$srcLocation rename to $srcDoingLocation :" + result)
-      return "appName:" + appName + ": " + s"$srcLocation rename to $srcDoingLocation :" + result + ". "
-    }
-    logInfo(s"$srcLocation rename to $srcDoingLocation :" + result)
-
-    val cdrLocation = srcDoingLocation + "/" + fileWildcard
-    val authFileExists = if (fileSystem.globStatus(new Path(cdrLocation)).length > 0) true else false
-
-    if (!authFileExists) {
-      logInfo("No Files during time: " + loadTime)
-      // System.exit(1)
-      return "appName:" + appName + ":No Files ."
-    }
-
-    val jsonRDD = sc.hadoopFile(cdrLocation,classOf[TextInputFormat],classOf[LongWritable],classOf[Text],1).map(p => new String(p._2.getBytes, 0, p._2.getLength, "GBK"))
-    val srcCDRDF = sqlContext.read.json(jsonRDD)
-
-    val cdrDF = CDRConverterUtils.parse(srcCDRDF, logType)
-    if (cdrDF == null) {
-      logInfo(s"$cdrLocation , data file Exists, but no data in file")
-      return s"$cdrLocation  , data file Exists, but no data in file"
-    }
-
-    // authDF.show(200)
-
-    // 计算cloalesce的数量
-    val coalesceNum = makeCoalesce(fileSystem, srcDoingLocation, coalesceSize)
-    logInfo(s"$inputPath , $coalesceSize, $coalesceNum")
-
-    //  val logTableName="iot_auth_data_3gaaa"
-
-    // 结果数据分区字段
-    val partitions = "d,h,m5"
-    // 将数据存入到HDFS， 并刷新分区表
-    val executeResult = CommonETLUtils.saveDFtoPartition(sqlContext, fileSystem, cdrDF, coalesceNum, partitions, loadTime, outputPath, logTableName, appName)
-
-    val srcDoneLocation = inputPath + "/" + loadTime + "_done"
-    val isDoneRename = renameHDFSDir(fileSystem, srcDoingLocation, srcDoneLocation)
-    var doneResult = "Success"
-    if (!isDoneRename) {
-      doneResult = "Failed"
-      logInfo(s"$srcDoingLocation rename to $srcDoneLocation :" + doneResult)
-      return "appName:" + appName + ": " + s"$srcDoingLocation rename to $srcDoneLocation :" + doneResult + ". "
-    }
-    logInfo(s"$srcDoingLocation rename to $srcDoneLocation :" + doneResult)
-
-    executeResult
+    val rst = doJob(sqlContext, fileSystem, params)
   }
 }

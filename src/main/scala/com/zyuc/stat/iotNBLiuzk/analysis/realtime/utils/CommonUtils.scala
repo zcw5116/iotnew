@@ -17,9 +17,6 @@ object CommonUtils {
     if(rs.next()){
       val currCycleRs = rs.getString(1)
       val lastCycleRs = if(null == rs.getString(2)) "" else rs.getString(2)
-      println(currCycleRs)
-      println(lastCycleRs)
-
       if(circle<lastCycleRs){
         // 不更新
         lastCycle = lastCycleRs
@@ -31,7 +28,6 @@ object CommonUtils {
         }else{
           lastCycle = currCycleRs
         }
-
       }
     }else{
       lastCycle = ""

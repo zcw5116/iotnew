@@ -132,6 +132,5 @@ object NbCdrM5Analysis {
     // 更新断点时间
     CommonUtils.updateBreakTable("iot_ana_5min_nb_cdr", dataTime+"00")
 
-
   }
 }

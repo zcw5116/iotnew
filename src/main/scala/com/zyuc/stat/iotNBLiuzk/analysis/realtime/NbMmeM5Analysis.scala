@@ -10,6 +10,7 @@ import org.apache.spark.sql.hive.HiveContext
 /**
   * Created by liuzk on 18-5-14.
   */
+
 object NbMmeM5Analysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NBM5Analysis_201805041530")
@@ -91,7 +92,7 @@ object NbMmeM5Analysis {
     val failusersDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "prov", "city", "FAILUSERS as gather_value").
       withColumn("gather_type", lit("FAILUSERS"))
 
-    // 将结果写入到hdfs
+    // 将结果写入到 hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
     reqsDF.unionAll(failreqsDF).unionAll(failusersDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 

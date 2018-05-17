@@ -35,8 +35,8 @@ object NbCdrDayAnalysis {
     import sqlContext.implicits._
     val terminalTable = "IOTTerminalTable"
     sc.textFile("/user/epciot/data/basic/IOTTerminal/iotterminal.csv")
-      .filter(!_.contains("This is a Test IMEI")).map(line=>line.split(",\"",5)).map(x=>(x(0),x(4)))
-      .toDF("tac", "devtype").registerTempTable(terminalTable)
+       .map(line=>line.replace("\"", "").split(",",5)).map(x=>(x(0),x(3)))
+      .toDF("tac", "modelname").registerTempTable(terminalTable)
 
     // 基站
     val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/epciot/data/basic/IotBSInfo/data/")
@@ -60,129 +60,106 @@ object NbCdrDayAnalysis {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select u.custid, c.mdn, c.enbid, b.provname as prov, b.cityname as city,
+         |select u.custid, c.mdn, t.modelname, c.enbid, b.provname as prov, b.cityname as city,
          |       c.upflow, c.downflow, c.tac
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
          |left join ${bsInfoTable} b on(c.enbid = b.enbid)
+         |left join ${terminalTable} t on(c.tac = t.tac)
        """.stripMargin)
     val cdrMdnTable = "spark_cdrmdn"
     mdnDF.registerTempTable(cdrMdnTable)
 
     // 基站的信息
     val bsStatDF = sqlContext.sql(
-      s"""
-         |select custid, enbid,
-         |       sum(upflow) as upflow, sum(downflow) as downflow,
-         |       count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
-         |from ${cdrMdnTable}
-         |group by custid, enbid
+      s"""select custid, enbid, upflow, downflow, activeUsers, activeSessions
+         |       row_number() over(partition by custid order by upflow) as uprank,
+         |       row_number() over(partition by custid order by downflow) as downrank,
+         |       row_number() over(partition by custid order by activeUsers) as activerank,
+         |       row_number() over(partition by custid order by activeSessions) as sessionrank
+         |
+         |from(
+         |    select custid, enbid,
+         |           sum(upflow) as upflow, sum(downflow) as downflow,
+         |           count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
+         |    from ${cdrMdnTable}
+         |    group by custid, enbid
+         |) t
        """.stripMargin)
+    val bsUpFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val bsDownFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val bsActiveFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
+    val bsSessionFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )
+
+    val bsResultDF = bsUpFlow.unionAll(bsDownFlow).unionAll(bsActiveFlow).unionAll(bsSessionFlow)
+
 
     // 省份
     val provStatDF = sqlContext.sql(
-      s"""
-         |select custid, prov,
-         |       sum(upflow) as upflow, sum(downflow) as downflow,
-         |       count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
-         |from ${cdrMdnTable}
-         |group by custid, prov
+      s"""select custid, prov, upflow, downflow, activeUsers, activeSessions
+         |       row_number() over(partition by custid order by upflow) as uprank,
+         |       row_number() over(partition by custid order by downflow) as downrank,
+         |       row_number() over(partition by custid order by activeUsers) as activerank,
+         |       row_number() over(partition by custid order by activeSessions) as sessionrank
+         |from
+         |(
+         |    select custid, prov,
+         |           sum(upflow) as upflow, sum(downflow) as downflow,
+         |           count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
+         |    from ${cdrMdnTable}
+         |    group by custid, prov
+         |) t
        """.stripMargin)
+    val provUpFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val provDownFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val provActiveFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
+    val provSessionFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )
+
+    val provResultDF = provUpFlow.unionAll(provDownFlow).unionAll(provActiveFlow).unionAll(provSessionFlow)
 
     //地市
     val cityStatDF = sqlContext.sql(
       s"""
-         |select custid, city
-         |       sum(upflow) as upflow, sum(downflow) as downflow,
-         |       count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
-         |from ${cdrMdnTable}
-         |group by custid, city
+         |select custid, city, upflow, downflow, activeUsers, activeSessions
+         |       row_number() over(partition by custid order by upflow) as uprank,
+         |       row_number() over(partition by custid order by downflow) as downrank,
+         |       row_number() over(partition by custid order by activeUsers) as activerank,
+         |       row_number() over(partition by custid order by activeSessions) as sessionrank
+         |from
+         |(
+         |    select custid, city
+         |           sum(upflow) as upflow, sum(downflow) as downflow,
+         |           count(distinct mdn) as activeUsers, count(chargingid) as activeSessions
+         |    from ${cdrMdnTable}
+         |    group by custid, city
+         |) t
        """.stripMargin)
+    val cityUpFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val cityDownFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val cityActiveFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
+    val citySessionFlow = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )
+
+    val cityResultDF = cityUpFlow.unionAll(cityDownFlow).unionAll(cityActiveFlow).unionAll(citySessionFlow)
+
 
     //tac
     val tacStatDF = sqlContext.sql(
-      s"""
-         |select custid, tac
-         |       count(distinct mdn) as cnt
-         |from ${cdrMdnTable}
-         |group by custid, tac
-       """.stripMargin)
-
-
-
-    val sqlDayAll =
-      s"""
-         |select '${dd}' as summ_cycle, u.custid,
-         |c.prov, c.city, c.t804 as enbid, i.devtype as TERMDETAIL,
-         |sum(c.l_datavolumefbcuplink) as INFLOW , sum(c.l_datavolumefbcdownlink) as OUTFLOW,
-         |(sum(c.l_datavolumefbcuplink) + sum(c.l_datavolumefbcdownlink)) as TOTALFLOW,
-         |count(distinct mdn) as ACTIVEUSERS ,count(chargingid) as SESSIONS
+      s"""select custid, modelname, cnt,
+         |       row_number() over(partition by custid order by cnt) as modelrank
          |from
-         |on c.tac=i.tac
-         |inner join
-         |${userTable} u
-         |on c.mdn = u.mdn
-         |group by u.custid, c.prov, c.city, c.t804, i.devtype
-       """.stripMargin
+         |(
+         |    select custid, modelname
+         |           count(distinct mdn) as cnt
+         |    from ${cdrMdnTable}
+         |    group by custid, tac
+         |) t
+       """.stripMargin)
+    val tacResultDF = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'TERMDETAIL' as dim_type", "modelname as dim_obj", "'-1' as meas_obj", "cnt as meas_value", "modelrank as meas_rank" )
 
-    //注册为临时表 再select -- as --  union on ---??
-    // val rowTable = "rowTable"
-    val resultDF = sqlContext.sql(sqlDayAll)//.registerTempTable(rowTable)
 
-    val inflowDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","TERMDETAIL", "INFLOW as meas_value").
-      withColumn("meas_obj", lit("INFLOW"))
-    val inflowDF3 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","null", "INFLOW as meas_value").
-      withColumn("meas_obj", lit("INFLOW"))
-    val inflowDF2 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","null","null", "INFLOW as meas_value").
-      withColumn("meas_obj", lit("INFLOW"))
-    val inflowDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "INFLOW as meas_value").
-      withColumn("meas_obj", lit("INFLOW"))
+    val resultDF = bsResultDF.unionAll(cityResultDF).unionAll(provResultDF).unionAll(tacResultDF)
 
-    val outflowDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","TERMDETAIL", "OUTFLOW as meas_value").
-      withColumn("meas_obj", lit("OUTFLOW"))
-    val outflowDF3 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","null", "OUTFLOW as meas_value").
-      withColumn("meas_obj", lit("OUTFLOW"))
-    val outflowDF2 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","null","null", "OUTFLOW as meas_value").
-      withColumn("meas_obj", lit("OUTFLOW"))
-    val outflowDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "OUTFLOW as meas_value").
-      withColumn("meas_obj", lit("OUTFLOW"))
-
-    val totalflowDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","TERMDETAIL", "TOTALFLOW as meas_value").
-      withColumn("meas_obj", lit("TOTALFLOW"))
-    val totalflowDF3 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","null", "TOTALFLOW as meas_value").
-      withColumn("meas_obj", lit("TOTALFLOW"))
-    val totalflowDF2 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","null","null", "TOTALFLOW as meas_value").
-      withColumn("meas_obj", lit("TOTALFLOW"))
-    val totalflowDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "TOTALFLOW as meas_value").
-      withColumn("meas_obj", lit("TOTALFLOW"))
-
-    val activeusersDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","TERMDETAIL", "ACTIVEUSERS as meas_value").
-      withColumn("meas_obj", lit("ACTIVEUSERS"))
-    val activeusersDF3 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","null", "ACTIVEUSERS as meas_value").
-      withColumn("meas_obj", lit("ACTIVEUSERS"))
-    val activeusersDF2 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","null","null", "ACTIVEUSERS as meas_value").
-      withColumn("meas_obj", lit("ACTIVEUSERS"))
-    val activeusersDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "ACTIVEUSERS as meas_value").
-      withColumn("meas_obj", lit("ACTIVEUSERS"))
-
-    val sessionsDF4 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","TERMDETAIL", "SESSIONS as meas_value").
-      withColumn("meas_obj", lit("SESSIONS"))
-    val sessionsDF3 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","enbid","null", "SESSIONS as meas_value").
-      withColumn("meas_obj", lit("SESSIONS"))
-    val sessionsDF2 = resultDF.selectExpr("summ_cycle", "custid", "prov", "city","null","null", "SESSIONS as meas_value").
-      withColumn("meas_obj", lit("SESSIONS"))
-    val sessionsDF1 = resultDF.selectExpr("summ_cycle", "custid", "prov", "null","null","null", "SESSIONS as meas_value").
-      withColumn("meas_obj", lit("SESSIONS"))
-
-    // 将结果写入到 hdfs
-    val outputResult = outputPath + dayPath
-    inflowDF4.unionAll(inflowDF3).unionAll(inflowDF2).unionAll(inflowDF1)
-      .unionAll(outflowDF4).unionAll(outflowDF3).unionAll(outflowDF2).unionAll(outflowDF1)
-      .unionAll(totalflowDF4).unionAll(totalflowDF3).unionAll(totalflowDF2).unionAll(totalflowDF1)
-      .unionAll(activeusersDF4).unionAll(activeusersDF3).unionAll(activeusersDF2).unionAll(activeusersDF1)
-      .unionAll(sessionsDF4).unionAll(sessionsDF3).unionAll(sessionsDF2).unionAll(sessionsDF1)
-      .repartition(20).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
-
+    resultDF.write.format("orc").mode(SaveMode.Overwrite).save(outputPath + dayPath)
 
   }
 }

@@ -13,7 +13,7 @@ import org.apache.spark.sql.hive.HiveContext
 
 object NbMmeM5Analysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NBM5Analysis_201805041530")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NBM5Analysis_201805041530")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -54,27 +54,42 @@ object NbMmeM5Analysis {
 
     // 关联custid
     val nbTable = "spark_nb"
+    sqlContext.sql(
+      s"""
+         |select u.custid, b.provname as prov, b.cityname as city, m.result
+         |from ${nbM5Table} m, ${userTable} u, ${bsInfoTable} b
+         |where u.mdn=m.msisdn and m.enbid=b.enbid
+       """.stripMargin).registerTempTable(nbTable)
+
     val statDF = sqlContext.sql(
+      s"""select custid, prov, city, count(*) as reqcnt,
+         |       sum(case when result='failed' then 1 else 0 end) as failreqcnt
+         |from ${nbTable}
+         |group by custid, prov, city
+       """.stripMargin)
+/*    val statDF = sqlContext.sql(
       s"""select custid, prov, city, count(*) as reqcnt,
          |       sum(case when result='failed' then 1 else 0 end) as failreqcnt
          |from
          |(
          |    select u.custid, b.provname as prov, b.cityname as city, m.result
          |    from ${nbM5Table} m, ${userTable} u, ${bsInfoTable} b
-         |    where u.mdn=m.msisdn and m.enbid=b.enbid
+         |    where u.mdn=m.MSISDN and m.eNBID=b.enbid
          |) t
-       """.stripMargin)
+         |group by custid, prov, city
+       """.stripMargin)*/
+
 
     val resultDF = statDF.
       withColumn("gather_cycle", lit(dataTime + "00")).
       withColumn("gather_date", lit(dataTime.substring(0,8))).
       withColumn("gather_time", lit(dataTime.substring(8,12) + "00"))
 
-    val reqsDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "prov", "city",
+    val reqsDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov",
       "reqcnt as gather_value").
       withColumn("gather_type", lit("REQS"))
 
-    val failreqsDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "prov", "city",
+    val failreqsDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov",
       "failreqcnt as gather_value").
       withColumn("gather_type", lit("FAILREQS"))
 
@@ -82,6 +97,8 @@ object NbMmeM5Analysis {
     // 将结果写入到 hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
     reqsDF.unionAll(failreqsDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+
+    print("aaaaaa=======")
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection
@@ -94,10 +111,12 @@ object NbMmeM5Analysis {
          |on duplicate key update gather_value=?
        """.stripMargin
 
+    print("aaaaaa=======")
+
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
       map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-        x.getString(4), x.getString(5), x.getDouble(6), x.getString(7))).collect()
+        x.getString(4), x.getString(5), x.getLong(6), x.getString(7))).collect()
 
     var i = 0
     for(r<-result){

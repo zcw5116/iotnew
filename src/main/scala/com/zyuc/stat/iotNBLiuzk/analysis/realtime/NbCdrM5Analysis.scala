@@ -12,7 +12,7 @@ import org.apache.spark.sql.functions._
   */
 object NbCdrM5Analysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NbM5Analysis_201805101400")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_201805161510")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -21,6 +21,10 @@ object NbCdrM5Analysis {
     val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/cdr/analy_realtime/nb")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
+
+    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/epciot/data/basic/IotBSInfo/data/")
+    val bsInfoTable = "IOTBSInfoTable"
+    sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val d= dataTime.substring(2,8)
@@ -53,11 +57,11 @@ object NbCdrM5Analysis {
     val nbTable = "spark_nb"
     sqlContext.sql(
       s"""
-         |select u.custid, n.prov, n.city,
+         |select u.custid, b.provname as prov, b.cityname as city,
          |       n.l_datavolumefbcuplink as upflow,
          |       n.l_datavolumefbcdownlink as downflow
-         |from ${nbM5Table} n, ${userTable} u
-         |where n.mdn = u.mdn
+         |from ${nbM5Table} n, ${userTable} u, ${bsInfoTable} b
+         |where n.mdn = u.mdn and n.enbid=b.enbid
        """.stripMargin).registerTempTable(nbTable)
 
     // 统计分析
@@ -73,10 +77,10 @@ object NbCdrM5Analysis {
       withColumn("gather_date", lit(dataTime.substring(0,8))).
       withColumn("gather_time", lit(dataTime.substring(8,12) + "00"))
 
-    val inflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "prov", "city", "upflow as gather_value").
+    val inflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov", "upflow as gather_value").
       withColumn("gather_type", lit("OUTFLOW"))
 
-    val outflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "prov", "city", "downflow as gather_value").
+    val outflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov", "downflow as gather_value").
       withColumn("gather_type", lit("INFLOW"))
 
     // 将结果写入到hdfs
@@ -97,7 +101,7 @@ object NbCdrM5Analysis {
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
       map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-        x.getString(4), x.getString(5), x.getDouble(6), x.getString(7))).collect()
+        x.getString(4), x.getString(5), x.getLong(6), x.getString(7))).collect()
 
     var i = 0
     for(r<-result){

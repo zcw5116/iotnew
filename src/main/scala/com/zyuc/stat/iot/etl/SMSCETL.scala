@@ -18,14 +18,14 @@ import scala.tools.scalap.scalax.util.StringUtil
 object SMSCETL extends Logging{
 
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[4]").setAppName("smsc")
+    val sparkConf = new SparkConf()//.setMaster("local[4]").setAppName("smsc")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     //val loadTime = "201709271456"
-    val loadTime = sc.getConf.get("spark.app.loadTime", "201709271456") //
-    val inputPath = "hdfs://EPC-IOT-ES-06:8020/hadoop/IOT/data/smsc/srcdata/smsc/"
-    val outputPath = "hdfs://EPC-IOT-ES-06:8020/hadoop/IOT/data/smsc/output/smsc/"
+    val loadTime = sc.getConf.get("spark.app.loadTime", "201805211427") //
+    val inputPath = "hdfs://nameservice1/user/epciot/data/msg/src/nb/"
+    val outputPath = "hdfs://nameservice1/user/epciot/data/msg/transform/nb/"
 
     val appName = "smsc_" + loadTime
     val fileWildcard = "*smsc*"
@@ -40,7 +40,7 @@ object SMSCETL extends Logging{
     //创建session
     val sqlContext = parentContext.newSession()
     //切换数据库
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+    //sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     //第一步：校验参数
     var msg =validate(fileSystem, appName, loadTime, inputPath, outputPath, fileWildcard, coalesceSize, logType, logTableName)
     if(!msg.isEmpty){

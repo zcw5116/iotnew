@@ -50,7 +50,7 @@ object CommonETLUtils extends Logging {
 
       begin = new Date().getTime
 
-      filePartitions.foreach(partition => {
+/*      filePartitions.foreach(partition => {
         var d = ""
         var h = ""
         var m5 = ""
@@ -85,7 +85,7 @@ object CommonETLUtils extends Logging {
             }
           }
         }
-      })
+      })*/
       logInfo("[" + appName + "] 刷新分区表用时 " + (new Date().getTime - begin) + " ms")
       return "[" + appName + "]  ETL  success."
     } catch {

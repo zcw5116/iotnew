@@ -1,4 +1,4 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.day
+package com.zyuc.stat.nbiot.analysis.day
 
 import java.sql.PreparedStatement
 
@@ -13,14 +13,14 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object NbMmeDayAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("name_20180504")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/mme/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/epciot/data/mme/summ_d/nb")
-    val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/mme/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/mme/summ_d/nb")
+    val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
@@ -33,7 +33,7 @@ object NbMmeDayAnalysis {
     sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable(mmeTmpTable)
 
     val bsInfoTable = "IOTBSInfoTable"
-    sqlContext.read.format("orc").load("/user/epciot/data/basic/IotBSInfo/data/").registerTempTable(bsInfoTable)
+    sqlContext.read.format("orc").load("/user/iot/data/basic/IotBSInfo/data/").registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
@@ -71,20 +71,20 @@ object NbMmeDayAnalysis {
     val bsTmpTable = "spark_bstmp"
      val bsStatDF = sqlContext.sql(
        s"""
-          |select m.custid, m.enbid, count(*) as reqcnt,
+          |select m.custid, m.enbid, m.prov, m.city, '-1' as district, count(*) as reqcnt,
           |       sum(case when m.result='failed' then 1 else 0 end) as failcnt
           |from ${mdnTable} m
-          |group by m.custid, m.enbid
+          |group by m.custid, m.enbid, m.prov, m.city
         """.stripMargin)
     bsStatDF.registerTempTable(bsTmpTable)
-    val bsReqDF = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj",
+    val bsReqDF = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'BS' as dim_type", "enbid as dim_obj",
     "'-1' as dim_obj_2", "'MMEREQS' as meas_obj", "reqcnt as meas_value", "-1 as meas_rank")
-    val bsReqFailDF = bsStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj",
+    val bsReqFailDF = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district","'BS' as dim_type", "enbid as dim_obj",
       "'-1' as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "-1 as meas_rank")
     val bsResultDF = bsReqFailDF.unionAll(bsReqDF)
 
-    val bsResult = bsReqDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val bsResult = bsResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
 
     // 数据入tidb
     mme2tidb(bsResult)
@@ -92,20 +92,20 @@ object NbMmeDayAnalysis {
     //  2. MME成功率-市维度
     val cityStatDF = sqlContext.sql(
       s"""
-         |select t.custid, b.cityname as city,
+         |select t.custid, b.cityname as city, b.provname as prov, '-1' as district,
          |       sum(reqcnt) as reqcnt, sum(failcnt) as failcnt
          |from ${bsTmpTable} t, ${bsInfoTable} b
          |where t.enbid = b.enbid
-         |group by t.custid, b.cityname
+         |group by t.custid, b.cityname, b.provname
        """.stripMargin)
-    val cityReqDF = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj",
+    val cityReqDF = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'CITY' as dim_type", "city as dim_obj",
       "'-1' as dim_obj_2", "'MMEREQS' as meas_obj", "reqcnt as meas_value", "-1 as meas_rank")
-    val cityReqFailDF = cityStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj",
+    val cityReqFailDF = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'CITY' as dim_type", "city as dim_obj",
       "'-1' as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "-1 as meas_rank")
     val cityResultDF = cityReqDF.unionAll(cityReqFailDF)
 
-    val cityResult = cityResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val cityResult = cityResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
 
     // 数据入tidb
    mme2tidb(cityResult)
@@ -115,21 +115,21 @@ object NbMmeDayAnalysis {
     //  3. MME成功率-省维度
     val provStatDF = sqlContext.sql(
       s"""
-         |select t.custid, b.provname as prov,
+         |select t.custid, b.provname as prov, '-1' as city, '-1' as district,
          |       sum(reqcnt) as reqcnt, sum(failcnt) as failcnt
          |from ${bsTmpTable} t, ${bsInfoTable} b
          |where t.enbid = b.enbid
          |group by t.custid, b.provname
        """.stripMargin)
 
-    val provReqDF = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj",
+    val provReqDF = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district","'PROV' as dim_type", "prov as dim_obj",
       "'-1' as dim_obj_2", "'MMEREQS' as meas_obj", "reqcnt as meas_value", "-1 as meas_rank")
-    val provReqFailDF = provStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj",
+    val provReqFailDF = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district","'PROV' as dim_type", "prov as dim_obj",
       "'-1' as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "-1 as meas_rank")
     val provResultDF = provReqDF.unionAll(provReqFailDF)
 
-    val provResult = provResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val provResult = provResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
 
     // 数据入tidb
     mme2tidb(provResult)
@@ -138,21 +138,21 @@ object NbMmeDayAnalysis {
     //  4. MME成功率-企业维度
     val custStatDF = sqlContext.sql(
       s"""
-         |select t.custid,
+         |select t.custid,'-1' as prov, '-1' as city, '-1' as district,
          |       sum(reqcnt) as reqcnt, sum(failcnt) as failcnt
          |from ${bsTmpTable} t, ${bsInfoTable} b
          |where t.enbid = b.enbid
          |group by t.custid
        """.stripMargin)
 
-    val custReqDF = custStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'-1' as dim_type", "'-1' as dim_obj",
+    val custReqDF = custStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'-1' as dim_type", "'-1' as dim_obj",
       "'-1' as dim_obj_2", "'MMEREQS' as meas_obj", "reqcnt as meas_value", "-1 as meas_rank")
-    val custReqFailDF = custStatDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'-1' as dim_type", "'-1' as dim_obj",
+    val custReqFailDF = custStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'-1' as dim_type", "'-1' as dim_obj",
       "'-1' as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "-1 as meas_rank")
     val custResultDF = custReqDF.unionAll(custReqFailDF)
 
-    val custResult = custResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val custResult = custResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
 
     // 数据入tidb
     mme2tidb(custResult)
@@ -163,7 +163,7 @@ object NbMmeDayAnalysis {
     // 1. 失败原因-企业维度
     val custFailDF = sqlContext.sql(
       s"""
-         |select custid, pcause, failcnt, failusers,
+         |select custid, pcause,'-1' as prov, '-1' as city, '-1' as district, failcnt, failusers,
          |       row_number() over(partition by custid order by failcnt desc) as failrank
          |from
          |(
@@ -174,24 +174,24 @@ object NbMmeDayAnalysis {
          |) t
        """.stripMargin)
 
-    val custFailcntDF = custFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'-1' as dim_type", "'-1' as dim_obj",
+    val custFailcntDF = custFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov","district", "'-1' as dim_type", "'-1' as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "failrank as meas_rank")
-    val custFailReqDF = custFailDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'-1' as dim_type", "'-1' as dim_obj",
+    val custFailReqDF = custFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov","district", "'-1' as dim_type", "'-1' as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILUSERS' as meas_obj", "failusers as meas_value", "-1 as meas_rank")
     val custFailResultDF = custFailcntDF.unionAll(custFailReqDF)
 
-    val custFailResult = custFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val custFailResult = custFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
     // 数据入tidb
     mme2tidb(custFailResult)
 
 
 
 
-    // 2. 失败原因-企业维度
+    // 2. 失败原因-省维度
     val provFailDF = sqlContext.sql(
       s"""
-         |select custid, prov, pcause, failcnt, failusers,
+         |select custid, prov,'-1' as city, '-1' as district, pcause, failcnt, failusers,
          |       row_number() over(partition by custid order by failcnt desc) as failrank
          |from
          |(
@@ -202,14 +202,14 @@ object NbMmeDayAnalysis {
          |) t
        """.stripMargin)
 
-    val provFailcntDF = provFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj",
+    val provFailcntDF = provFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'PROV' as dim_type", "prov as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "failrank as meas_rank")
-    val provFailReqDF = provFailDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'PROV' as dim_type", "prov as dim_obj",
+    val provFailReqDF = provFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'PROV' as dim_type", "prov as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILUSERS' as meas_obj", "failusers as meas_value", "-1 as meas_rank")
     val provFailResultDF = provFailcntDF.unionAll(provFailReqDF)
 
-    val provFailResult = provFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val provFailResult = provFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
     // 数据入tidb
     mme2tidb(provFailResult)
 
@@ -217,24 +217,24 @@ object NbMmeDayAnalysis {
     // 3. 失败原因-地市维度
     val cityFailDF = sqlContext.sql(
       s"""
-         |select custid, city, pcause, failcnt, failusers,
+         |select custid, prov, city,'-1' as district,  pcause, failcnt, failusers,
          |       row_number() over(partition by custid order by failcnt desc) as failrank
          |from
          |(
-         |    select m.custid, m.city, m.pcause, count(*) failcnt, count(distinct mdn) as failusers
+         |    select m.custid, m.prov, m.city, m.pcause, count(*) failcnt, count(distinct mdn) as failusers
          |    from ${mdnTable} m
          |    where m.result='failed'
-         |    group by m.custid, m.city, m.pcause
+         |    group by m.custid, m.prov, m.city, m.pcause
          |) t
        """.stripMargin)
-    val cityFailcntDF = cityFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj",
+    val cityFailcntDF = cityFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'CITY' as dim_type", "city as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "failrank as meas_rank")
-    val cityFailReqDF = cityFailDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'CITY' as dim_type", "city as dim_obj",
+    val cityFailReqDF = cityFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'CITY' as dim_type", "city as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILUSERS' as meas_obj", "failusers as meas_value", "-1 as meas_rank")
     val cityFailResultDF = cityFailcntDF.unionAll(cityFailReqDF)
 
-    val cityFailResult = cityFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val cityFailResult = cityFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
     // 数据入tidb
     mme2tidb(cityFailResult)
 
@@ -243,27 +243,34 @@ object NbMmeDayAnalysis {
     // 4. 失败原因-基站维度
     val bsFailDF = sqlContext.sql(
       s"""
-         |select custid, enbid, pcause, failcnt, failusers,
+         |select custid,prov, city, '-1' as district, enbid, pcause, failcnt, failusers,
          |       row_number() over(partition by custid order by failcnt desc) as failrank
          |from
          |(
-         |    select m.custid, m.enbid, m.pcause, count(*) failcnt, count(distinct mdn) as failusers
+         |    select m.custid, m.prov, m.city, m.enbid, m.pcause, count(*) failcnt, count(distinct mdn) as failusers
          |    from ${mdnTable} m
          |    where m.result='failed'
-         |    group by m.custid, m.enbid, m.pcause
+         |    group by m.custid,m.prov, m.city, m.enbid, m.pcause
          |) t
        """.stripMargin)
 
-    val bsFailcntDF = bsFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj",
+    val bsFailcntDF = bsFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov","district", "'BS' as dim_type", "enbid as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILREQS' as meas_obj", "failcnt as meas_value", "failrank as meas_rank")
-    val bsFailReqDF = bsFailDF.selectExpr(s"${dataTime} as summ_cycle", "custid", "'BS' as dim_type", "enbid as dim_obj",
+    val bsFailReqDF = bsFailDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj",
       "pcause as dim_obj_2", "'MMEFAILUSERS' as meas_obj", "failusers as meas_value", "-1 as meas_rank")
     val bsFailResultDF = bsFailcntDF.unionAll(bsFailReqDF)
 
-    val bsFailResult = bsFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-      x.getString(4), x.getString(5), x.getLong(6), x.getInt(7))).collect()
+    val bsFailResult = bsFailResultDF.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4),
+      x.getString(5),x.getString(6),x.getString(7), x.getString(8), x.getLong(9), x.getInt(10))).collect()
     // 数据入tidb
     mme2tidb(bsFailResult)
+
+    // 将结果写入到hdfs
+    val outputResultPath = outputPath + dayPath
+    val allResultDF = bsResultDF.unionAll(cityResultDF).unionAll(provResultDF).unionAll(custResultDF)
+      .unionAll(custFailResultDF).unionAll(provFailResultDF).unionAll(cityFailResultDF).unionAll(bsFailResultDF)
+
+    allResultDF.write.mode(SaveMode.Overwrite).format("orc").save(outputResultPath)
 
   }
 
@@ -285,7 +292,7 @@ object NbMmeDayAnalysis {
     dbConn.close()
   }
 
-  def mme2tidb(result: Array[(String, String, String, String, String, String, Long, Int)]) = {
+  def mme2tidb(result: Array[(String, String, String,String, String, String, String, String, String, Long, Int)]) = {
     // 将结果写入到tidb
     var dbConn = DbUtils.getDBConnection
 
@@ -294,8 +301,8 @@ object NbMmeDayAnalysis {
     val sql =
       s"""
          |insert into iot_ana_nb_data_summ_d
-         |(summ_cycle, cust_id, dim_type, dim_obj, dim_obj_2, meas_obj, meas_value, meas_rank)
-         |values (?,?,?,?,?,?,?,?)
+         |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, dim_obj_2, meas_obj, meas_value, meas_rank)
+         |values (?,?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
 
     val pstmt = dbConn.prepareStatement(sql)
@@ -305,25 +312,31 @@ object NbMmeDayAnalysis {
       //val size = r.productIterator.size
       val summ_cycle = r._1
       val custid = r._2
-      val dim_type = r._3
-      val dim_obj = r._4
-      val dim_obj_2 = r._5
-      val meas_obj = r._6
-      val meas_value = r._7
-      val meas_rank = r._8
-
+      val city = r._3
+      val province = r._4
+      val district = r._5
+      val dim_type = r._6
+      val dim_obj = r._7
+      val dim_obj_2 = r._8
+      val meas_obj = r._9
+      val meas_value = r._10
+      val meas_rank = r._11
 
       pstmt.setString(1, summ_cycle)
       pstmt.setString(2, custid)
-      pstmt.setString(3, dim_type)
-      pstmt.setString(4, dim_obj)
-      pstmt.setString(5, dim_obj_2)
-      pstmt.setString(6, meas_obj)
-      pstmt.setLong(7, meas_value)
-      pstmt.setLong(8, meas_rank)
+      pstmt.setString(3, city)
+      pstmt.setString(4, province)
+      pstmt.setString(5, district)
+      pstmt.setString(6, dim_type)
+      pstmt.setString(7, dim_obj)
+      pstmt.setString(8, dim_obj_2)
+      pstmt.setString(9, meas_obj)
+      pstmt.setLong(10, meas_value)
+      pstmt.setLong(11, meas_rank)
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
+        dbConn.commit()
       }
     }
     pstmt.executeBatch

@@ -1,9 +1,9 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.day
+package com.zyuc.stat.nbiot.analysis.day
 
 import java.sql.PreparedStatement
 
 import com.zyuc.iot.utils.DbUtils
-import com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils.CommonUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.hive.HiveContext
@@ -14,14 +14,14 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object NbMsgDayAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NbM5Analysis_20180510")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_20180510")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/msg/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/msg/summ_d/nb")
-    val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/msg/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/msg/summ_d/nb")
+    val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
     val dayid = appName.substring(appName.lastIndexOf("_") + 1)
@@ -75,6 +75,9 @@ object NbMsgDayAnalysis {
 
     val resultDF = resultStatDF.
       withColumn("summ_cycle", lit(dayid)).
+      withColumn("city", lit("-1")).
+      withColumn("prov", lit("-1")).
+      withColumn("district", lit("-1")).
       withColumn("dim_type", lit("-1")).
       withColumn("dim_obj", lit("-1")).
       withColumn("meas_obj", lit("MSGS")).
@@ -83,7 +86,7 @@ object NbMsgDayAnalysis {
 
     // 将结果写入到hdfs
     val outputResult = outputPath + "/d=" + d
-    resultDF.selectExpr("summ_cycle","custid", "dim_type", "dim_obj", "meas_obj", "meas_rank",
+    resultDF.selectExpr("summ_cycle","custid", "city", "prov","district","dim_type", "dim_obj", "meas_obj", "meas_rank",
       "msgnum as meas_value").write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
 
@@ -107,36 +110,43 @@ object NbMsgDayAnalysis {
     val sql =
       s"""
          |insert into iot_ana_nb_data_summ_d
-         |(summ_cycle, cust_id, dim_type, dim_obj, meas_obj, meas_rank, meas_value)
-         |values (?,?,?,?,?,?,?)
+         |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_rank, meas_value)
+         |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
 
     pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
-      map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-        x.getString(4), x.getInt(5),x.getLong(6))).collect()
+      map(x=>(x.getString(0), x.getString(1), x.getString(2),x.getString(3),x.getString(4), x.getString(5),
+        x.getString(6), x.getString(7), x.getInt(8),x.getLong(9))).collect()
 
     var i = 0
     for(r<-result){
       //val size = r.productIterator.size
       val summ_cycle = r._1
       val custid = r._2
-      val dim_type = r._3
-      val dim_obj = r._4
-      val meas_obj = r._5
-      val meas_rank = r._6
-      val meas_value = r._7
+      val city = r._3
+      val province = r._4
+      val district = r._5
+      val dim_type = r._6
+      val dim_obj = r._7
+      val meas_obj = r._8
+      val meas_rank = r._9
+      val meas_value = r._10
 
       pstmt.setString(1, summ_cycle)
       pstmt.setString(2, custid)
-      pstmt.setString(3, dim_type)
-      pstmt.setString(4, dim_obj)
-      pstmt.setString(5, meas_obj)
-      pstmt.setInt(6, meas_rank)
-      pstmt.setLong(7, meas_value)
+      pstmt.setString(3, city)
+      pstmt.setString(4, province)
+      pstmt.setString(5, district)
+      pstmt.setString(6, dim_type)
+      pstmt.setString(7, dim_obj)
+      pstmt.setString(8, meas_obj)
+      pstmt.setInt(9, meas_rank)
+      pstmt.setLong(10, meas_value)
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
+        dbConn.commit()
       }
     }
     pstmt.executeBatch

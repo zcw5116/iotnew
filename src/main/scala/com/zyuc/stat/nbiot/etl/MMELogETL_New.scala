@@ -1,10 +1,12 @@
-package com.zyuc.stat.iotNBLiuzk.etl
+package com.zyuc.stat.nbiot.etl
 
 import com.alibaba.fastjson.{JSON, JSONObject}
 import com.zyuc.stat.iot.etl.util.MMEConverterUtils
 import com.zyuc.stat.properties.ConfigProperties
 import com.zyuc.stat.utils.FileUtils
 import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.io.{LongWritable, Text}
+import org.apache.hadoop.mapred.TextInputFormat
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.{Logging, SparkConf, SparkContext}
@@ -17,6 +19,7 @@ import scala.collection.mutable
 object MMELogETL_New extends Logging{
 	def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
 		val sqlContext = parentContext.newSession()
+		val sc = sqlContext.sparkContext
 		//sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
 		
 		val appName      = params.getString("appName")
@@ -74,7 +77,9 @@ object MMELogETL_New extends Logging{
 					
 					if (FileUtils.getFilesByWildcard(fileSystem, fileWildcard).length > 0) {
 						findFile = true
-						val fileDF = sqlContext.read.format("json").load(fileWildcard)
+						val jsonRDD = sc.hadoopFile(fileWildcard,classOf[TextInputFormat],classOf[LongWritable],classOf[Text],1)
+							.map(p => new String(p._2.getBytes, 0, p._2.getLength, "GBK"))
+						val fileDF = sqlContext.read.json(jsonRDD)
 						val newDF  = MMEConverterUtils.parseMME(fileDF, mmeType)
 						if (newDF != null) {
 							unionDF = if (unionDF == null) newDF else unionDF.unionAll(newDF)
@@ -166,7 +171,7 @@ object MMELogETL_New extends Logging{
 			"""
 			  |{
 			  | "appName"      : "MHTEST",
-			  | "loadTime"     : "201805091509",
+			  | "loadTime"     : "201805191515",
 			  | "inputPath"    : "hdfs://nameservice1/user/epciot/data/mme/src/nb",
 			  | "outputPath"   : "hdfs://nameservice1/user/epciot/data/mme/transform/nb",
 			  | "hwmmWildcard" : "HuaweiUDN-MM",
@@ -175,7 +180,7 @@ object MMELogETL_New extends Logging{
 			  | "ztsmWildcard" : "sgsnmme_sm",
 				| "ermmWildcard" : "er_mm",
 				| "ersmWildcard" : "er_sm",
-			  | "provinceList" : "GSS"
+			  | "provinceList" : "CQ"
 			  |}
 			""".stripMargin
 		//provinceList

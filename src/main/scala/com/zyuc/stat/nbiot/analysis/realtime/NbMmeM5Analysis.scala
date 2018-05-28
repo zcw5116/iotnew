@@ -1,7 +1,7 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.realtime
+package com.zyuc.stat.nbiot.analysis.realtime
 
 import com.zyuc.iot.utils.DbUtils
-import com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils.CommonUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions.lit
@@ -18,12 +18,12 @@ object NbMmeM5Analysis {
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/mme/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/mme/analy_realtime/nb")
-    val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/mme/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/mme/analy_realtime/nb")
+    val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
-    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/epciot/data/basic/IotBSInfo/data/")
+    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/iot/data/basic/IotBSInfo/data/")
     val bsInfoTable = "IOTBSInfoTable"
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
@@ -56,7 +56,7 @@ object NbMmeM5Analysis {
     val nbTable = "spark_nb"
     sqlContext.sql(
       s"""
-         |select u.custid, b.provname as prov, b.cityname as city, m.result
+         |select u.custid, b.provname as prov, nvl(b.cityname,'-') as city, m.result
          |from ${nbM5Table} m, ${userTable} u, ${bsInfoTable} b
          |where u.mdn=m.msisdn and m.enbid=b.enbid
        """.stripMargin).registerTempTable(nbTable)
@@ -67,18 +67,6 @@ object NbMmeM5Analysis {
          |from ${nbTable}
          |group by custid, prov, city
        """.stripMargin)
-/*    val statDF = sqlContext.sql(
-      s"""select custid, prov, city, count(*) as reqcnt,
-         |       sum(case when result='failed' then 1 else 0 end) as failreqcnt
-         |from
-         |(
-         |    select u.custid, b.provname as prov, b.cityname as city, m.result
-         |    from ${nbM5Table} m, ${userTable} u, ${bsInfoTable} b
-         |    where u.mdn=m.MSISDN and m.eNBID=b.enbid
-         |) t
-         |group by custid, prov, city
-       """.stripMargin)*/
-
 
     val resultDF = statDF.
       withColumn("gather_cycle", lit(dataTime + "00")).
@@ -98,20 +86,16 @@ object NbMmeM5Analysis {
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
     reqsDF.unionAll(failreqsDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
-    print("aaaaaa=======")
-
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection
     dbConn.setAutoCommit(false)
     val sql =
       s"""
          |insert into iot_ana_5min_nb_mme
-         |(gather_cycle, gather_date, gather_time,cust_id, province, city, gather_type, gather_value)
+         |(gather_cycle, gather_date, gather_time,cust_id, city, province, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?)
          |on duplicate key update gather_value=?
        """.stripMargin
-
-    print("aaaaaa=======")
 
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
@@ -124,8 +108,8 @@ object NbMmeM5Analysis {
       val gather_date = r._2
       val gather_time = r._3
       val custid = r._4
-      val prov = r._5
-      val city = r._6
+      val city = r._5
+      val province = r._6
       val gather_type = r._8
       val gather_value = r._7
 
@@ -133,14 +117,15 @@ object NbMmeM5Analysis {
       pstmt.setString(2, gather_date)
       pstmt.setString(3, gather_time)
       pstmt.setString(4, custid)
-      pstmt.setString(5, prov)
-      pstmt.setString(6, city)
+      pstmt.setString(5, city)
+      pstmt.setString(6, province)
       pstmt.setString(7, gather_type)
       pstmt.setDouble(8, gather_value)
       pstmt.setDouble(9, gather_value)
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
+        dbConn.commit()
       }
     }
     pstmt.executeBatch

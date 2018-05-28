@@ -1,4 +1,4 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils
+package com.zyuc.stat.nbiot.analysis.realtime.utils
 
 import com.zyuc.iot.utils.DbUtils
 

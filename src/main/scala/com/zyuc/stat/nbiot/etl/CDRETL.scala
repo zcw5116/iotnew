@@ -1,4 +1,4 @@
-package com.zyuc.stat.iotNBLiuzk.etl
+package com.zyuc.stat.nbiot.etl
 
 import com.alibaba.fastjson.{JSON, JSONObject}
 import com.zyuc.stat.iot.etl.util.CDRConverterUtils
@@ -8,6 +8,8 @@ import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.{Logging, SparkConf, SparkContext}
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.hadoop.io.{LongWritable, Text}
+import org.apache.hadoop.mapred.TextInputFormat
 
 import scala.collection.mutable
 
@@ -17,6 +19,7 @@ import scala.collection.mutable
 object CDRETL extends Logging{
   def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
     val sqlContext = parentContext.newSession()
+    val sc = sqlContext.sparkContext
     //sqlContext.sql("use +" + ConfigProperties.IOT_HIVE_DATABASE)
 
     val appName = params.getString("appName")
@@ -54,7 +57,9 @@ object CDRETL extends Logging{
       val location = dirDoing + "/" + fileWildcard
 
       if (FileUtils.getFilesByWildcard(fileSystem, location).length > 0) {
-        val fileDF = sqlContext.read.format("json").load(location)
+        val jsonRDD = sc.hadoopFile(location,classOf[TextInputFormat],classOf[LongWritable],classOf[Text],1)
+          .map(p => new String(p._2.getBytes, 0, p._2.getLength, "GBK"))
+        val fileDF = sqlContext.read.json(jsonRDD)
         dataDF = CDRConverterUtils.parse(fileDF, CDRConverterUtils.LOG_TYPE_PGW)
       }
       else {
@@ -115,7 +120,7 @@ object CDRETL extends Logging{
       """
         |{
         | "appName"      : "mh_testCDR",
-        | "loadTime"     : "201805161538",
+        | "loadTime"     : "201805100337",
         | "inputPath"    : "hdfs://nameservice1/user/epciot/data/cdr/src/nb",
         | "outputPath"   : "hdfs://nameservice1/user/epciot/data/cdr/transform/nb",
         | "fileWildcard" : "*"

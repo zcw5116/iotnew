@@ -1,4 +1,4 @@
-package com.zyuc.stat.iotNBLiuzk.server
+package com.zyuc.stat.nbiot.server
 
 /**
   * Created by zhoucw on 17-7-17.
@@ -12,8 +12,9 @@ import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
 import com.zyuc.stat.app.{FileManage, HDFSFiles}
 import com.zyuc.stat.epc.etl.{EpcGwEtl, EpcMmeEtl}
 import com.zyuc.stat.iot.etl.CDRETL.doJob
-import com.zyuc.stat.iot.etl.{CDRETL, MMELogETL, MMELogETL_New, SMSCETL}
+import com.zyuc.stat.iot.etl.{MMELogETL, SMSCETL}
 import com.zyuc.stat.iot.smsc.SMSCAnalysis
+import com.zyuc.stat.nbiot.etl.{CDRETL, MMELogETL_New}
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SQLContext
@@ -77,16 +78,8 @@ object ConvertServer {
             serverInfo = "未知异常"
             serverInfo = MMELogETL_New.doJob(sqlContext, fileSystem, Params)
           } else if (serverLine == "cdrETL") {
-            val appName = Params.getString("appName")
-            val loadTime = Params.getString("loadTime")
-            val inputPath = Params.getString("inputPath")
-            val fileWildcard = Params.getString("fileWildcard")
-            val outputPath = Params.getString("outputPath")
-            val coalesceSize = Params.getString("coalesceSize")
-            val logType = Params.getString("logType")
-            val logTableName = Params.getString("logTableName")
             serverInfo = "未知异常"
-            serverInfo = CDRETL.doJob(sqlContext, fileSystem, appName, loadTime, inputPath, outputPath, fileWildcard, coalesceSize.toInt, logType, logTableName)
+            serverInfo = CDRETL.doJob(sqlContext, fileSystem, Params)
           } else if (serverLine == "smssETL") {
             val appName = Params.getString("appName")
             val loadTime = Params.getString("loadTime")

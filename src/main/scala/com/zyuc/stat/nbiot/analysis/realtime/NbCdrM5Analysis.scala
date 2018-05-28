@@ -1,7 +1,7 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.realtime
+package com.zyuc.stat.nbiot.analysis.realtime
 
 import com.zyuc.iot.utils.DbUtils
-import com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils.CommonUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
@@ -17,12 +17,12 @@ object NbCdrM5Analysis {
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/cdr/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/cdr/analy_realtime/nb")
-    val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/cdr/analy_realtime/nb")
+    val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
-    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/epciot/data/basic/IotBSInfo/data/")
+    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/iot/data/basic/IotBSInfo/data/")
     val bsInfoTable = "IOTBSInfoTable"
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
@@ -57,19 +57,23 @@ object NbCdrM5Analysis {
     val nbTable = "spark_nb"
     sqlContext.sql(
       s"""
-         |select u.custid, b.provname as prov, b.cityname as city,
+         |select u.custid, b.provname as prov, nvl(b.cityname,'-') as city,
          |       n.l_datavolumefbcuplink as upflow,
          |       n.l_datavolumefbcdownlink as downflow
          |from ${nbM5Table} n, ${userTable} u, ${bsInfoTable} b
-         |where n.mdn = u.mdn and n.enbid=b.enbid
+         |where n.mdn = u.mdn and n.enbid=b.enbid and n.prov=b.provname
        """.stripMargin).registerTempTable(nbTable)
 
     // 统计分析
      val resultStatDF = sqlContext.sql(
        s"""
-          |select custid, prov, city, sum(upflow) as upflow, sum(downflow) as downflow
-          |from ${nbTable}
-          |group by custid, prov, city
+          |select  custid, prov, city, upflow, downflow, (upflow + downflow) as totalflow
+          |from
+          |(
+          |    select custid, prov, city, sum(upflow) as upflow, sum(downflow) as downflow
+          |    from ${nbTable}
+          |    group by custid, prov, city
+          |) t
         """.stripMargin)
 
     val resultDF = resultStatDF.
@@ -83,9 +87,12 @@ object NbCdrM5Analysis {
     val outflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov", "downflow as gather_value").
       withColumn("gather_type", lit("INFLOW"))
 
+    val totalflowDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov", "totalflow as gather_value").
+      withColumn("gather_type", lit("TOTALFLOW"))
+
     // 将结果写入到hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
-    inflowDF.unionAll(outflowDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection
@@ -126,6 +133,7 @@ object NbCdrM5Analysis {
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
+        dbConn.commit()
       }
     }
     pstmt.executeBatch

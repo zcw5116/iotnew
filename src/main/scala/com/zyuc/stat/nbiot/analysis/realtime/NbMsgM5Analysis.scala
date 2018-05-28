@@ -1,7 +1,7 @@
-package com.zyuc.stat.iotNBLiuzk.analysis.realtime
+package com.zyuc.stat.nbiot.analysis.realtime
 
 import com.zyuc.iot.utils.DbUtils
-import com.zyuc.stat.iotNBLiuzk.analysis.realtime.utils.CommonUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.hive.HiveContext
@@ -12,14 +12,14 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object NbMsgM5Analysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("NbM5Analysis_201805101400")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_201805101400")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/epciot/data/msg/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/epciot/data/msg/analy_realtime/nb")
-    val userPath = sc.getConf.get("spark.app.userPath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/msg/transform/nb/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/msg/analy_realtime/nb")
+    val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
@@ -128,6 +128,7 @@ object NbMsgM5Analysis {
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
+        dbConn.commit()
       }
     }
     pstmt.executeBatch

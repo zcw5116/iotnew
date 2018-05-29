@@ -11,10 +11,9 @@ import com.alibaba.fastjson.JSON
 import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
 import com.zyuc.stat.app.{FileManage, HDFSFiles}
 import com.zyuc.stat.epc.etl.{EpcGwEtl, EpcMmeEtl}
-import com.zyuc.stat.iot.etl.CDRETL.doJob
 import com.zyuc.stat.iot.etl.{MMELogETL, SMSCETL}
-import com.zyuc.stat.iot.smsc.SMSCAnalysis
 import com.zyuc.stat.nbiot.etl.{CDRETL, MMELogETL_New}
+import com.zyuc.stat.notNBiot.etl.{HACCGETL, PDSNETL, PGWETL}
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SQLContext
@@ -91,7 +90,16 @@ object ConvertServer {
             val logTableName = Params.getString("logTableName")
             serverInfo = "未知异常"
             serverInfo = SMSCETL.doJob(sqlContext, fileSystem, appName, loadTime, inputPath, outputPath, fileWildcard, coalesceSize.toInt, logType, logTableName)
-          }else if(serverLine == "epcGwETL"){
+          }else if (serverLine == "pgwETL") {
+            serverInfo = "未知异常"
+            serverInfo = PGWETL.doJob(sqlContext, fileSystem, Params)
+          }else if (serverLine == "pdsnETL") {
+            serverInfo = "未知异常"
+            serverInfo = PDSNETL.doJob(sqlContext, fileSystem, Params)
+          }else if (serverLine == "haccgETL") {
+            serverInfo = "未知异常"
+            serverInfo = HACCGETL.doJob(sqlContext, fileSystem, Params)
+          } else if(serverLine == "epcGwETL"){
             val appName = Params.getString("appName")
             val loadTime = Params.getString("loadTime")
             val inputPath = Params.getString("inputPath")

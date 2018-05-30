@@ -43,8 +43,8 @@ object MMEConverterUtils extends Logging{
             "T81 as RegProSign", "T131 RegProRst", "T9 as delay",
             "T49 as eci",
             "substr(regexp_replace(T0,'-',''),3,6) as d",
-            "regexp_extract(T0,'.* ([0-9]+):.*',1) as h",
-            "floor(regexp_extract(T0,'.* [0-9]+:([0-9]+):.*',1)/5)*5 as m5"
+            "substr(T0,12,2) as h",
+            "lpad(floor(substr(T0,15,2)/5)*5,2,'0') as m5"
           )
         } else if ( mmetype == NB_MME_ZTMM_TYPE || mmetype == NB_MME_ZTSM_TYPE) {
           newDF = mmeDF.selectExpr("T8 as procedureid", "T0 as starttime", "T10 as acctype", "T5 as IMSI", "T6 as MSISDN",
@@ -57,8 +57,8 @@ object MMEConverterUtils extends Logging{
             s"case when '$mmetype' in ('$NB_MME_HWMM_TYPE', '$NB_MME_HWSM_TYPE') and T8 in('0x00','0x18') then 1 when  '$mmetype' in ('$NB_MME_ZTMM_TYPE', '$NB_MME_ZTSM_TYPE') and T8 in('2101','2102') then 1 else 0 end as isAttach",
             "T81 as RegProSign", "T131 RegProRst", "T9 as delay","concat(T12,'-',T43) as eci",
             "substr(regexp_replace(T0,'-',''),3,6) as d",
-            "regexp_extract(T0,'.* ([0-9]+):.*',1) as h",
-            "floor(regexp_extract(T0,'.* [0-9]+:([0-9]+):.*',1)/5)*5 as m5"
+            "substr(T0,12,2) as h",
+            "lpad(floor(substr(T0,15,2)/5)*5,2,'0') as m5"
           )
         } else if(mmetype == NB_MME_HWMM_TYPE){
           newDF = mmeDF.selectExpr("T8 as procedureid", "T0 as starttime", "T10 as acctype", "T5 as IMSI", "T6 as MSISDN",
@@ -72,8 +72,8 @@ object MMEConverterUtils extends Logging{
             "T81 as RegProSign", "T131 RegProRst", "T9 as delay",
             "T49 as eci",
             "substr(regexp_replace(T0,'-',''),3,6) as d",
-            "regexp_extract(T0,'.* ([0-9]+):.*',1) as h",
-            "floor(regexp_extract(T0,'.* [0-9]+:([0-9]+):.*',1)/5)*5 as m5"
+            "substr(T0,12,2) as h",
+            "lpad(floor(substr(T0,15,2)/5)*5,2,'0') as m5"
           )
         }
         else if (mmetype == NB_MME_ERMM_TYPE || mmetype == NB_MME_ERSM_TYPE) {
@@ -86,8 +86,8 @@ object MMEConverterUtils extends Logging{
             "T81 as RegProSign", "T131 RegProRst", "T9 as delay",
             "T49 as eci",
             "substr(regexp_replace(T0,'-',''),3,6) as d",
-            "regexp_extract(T0,'.* ([0-9]+):.*',1) as h",
-            "floor(regexp_extract(T0,'.* [0-9]+:([0-9]+):.*',1)/5)*5 as m5"
+            "substr(T0,12,2) as h",
+            "lpad(floor(substr(T0,15,2)/5)*5,2,'0') as m5"
           )
         }else if(mmetype == NB_MME_ZTPG_TYPE){
           newDF = mmeDF.selectExpr("T8 as procedureid", "T0 as starttime", "T10 as acctype", "T5 as IMSI", "T6 as MSISDN",
@@ -98,8 +98,8 @@ object MMEConverterUtils extends Logging{
             s"case when '$mmetype' in ('$MME_HWMM_TYPE', '$MME_HWSM_TYPE') and T8 in('0x00','0x18') then 1 when  '$mmetype' in ('$MME_ZTMM_TYPE', '$MME_ZTSM_TYPE') and T8 in('2101','2102') then 1 else 0 end as isAttach",
             "concat(T12,'-',T43) as eci",
             "substr(regexp_replace(T0,'-',''),3,6) as d",
-            "regexp_extract(T0,'.* ([0-9]+):.*',1) as h",
-            "floor(regexp_extract(T0,'.* [0-9]+:([0-9]+):.*',1)/5)*5 as m5"
+            "substr(T0,12,2) as h",
+            "lpad(floor(substr(T0,15,2)/5)*5,2,'0') as m5"
           )
         }
 

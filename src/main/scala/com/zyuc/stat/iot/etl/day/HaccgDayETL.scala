@@ -1,4 +1,4 @@
-package com.zyuc.stat.iot.analysis.day
+package com.zyuc.stat.iot.etl.day
 
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.spark.sql.SaveMode
@@ -8,7 +8,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 /**
   * Created by liuzk on 18-5-29.
   */
-object HaccgDayAnalysis {
+object HaccgDayETL {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
     val sc = new SparkContext(sparkConf)

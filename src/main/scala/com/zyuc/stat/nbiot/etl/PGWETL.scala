@@ -1,14 +1,14 @@
-package com.zyuc.stat.iotCdrAnalysis.etl
+package com.zyuc.stat.nbiot.etl
 
 import com.alibaba.fastjson.{JSON, JSONObject}
 import com.zyuc.stat.iot.etl.util.CDRConverterUtils
 import com.zyuc.stat.utils.FileUtils
 import org.apache.hadoop.fs.FileSystem
-import org.apache.spark.{Logging, SparkConf, SparkContext}
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
-import org.apache.spark.sql.hive.HiveContext
 import org.apache.hadoop.io.{LongWritable, Text}
 import org.apache.hadoop.mapred.TextInputFormat
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.{Logging, SparkConf, SparkContext}
 
 import scala.collection.mutable
 
@@ -120,12 +120,13 @@ object PGWETL extends Logging{
       """
         |{
         | "appName"      : "mh_testCDR",
-        | "loadTime"     : "201805281526",
-        | "inputPath"    : "hdfs://nameservice1/user/iot/data/cdr/src/pgw",
-        | "outputPath"   : "hdfs://nameservice1/user/iot/data/cdr/transform/pgw",
+        | "loadTime"     : "201805281515",
+        | "inputPath"    : "/user/iot/data/cdr/src/pgw",
+        | "outputPath"   : "/user/iot/data/cdr/transform/pgw",
         | "fileWildcard" : "*"
         |}
       """.stripMargin
+    //  hdfs://nameservice1
     val params = JSON.parseObject(paramString)
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
     val rst = doJob(sqlContext, fileSystem, params)

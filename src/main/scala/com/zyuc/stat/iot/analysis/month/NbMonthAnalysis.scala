@@ -1,9 +1,9 @@
-package com.zyuc.stat.iotCdrAnalysis.analysis.month
+package com.zyuc.stat.iot.analysis.month
 
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-5-29.
@@ -30,16 +30,16 @@ object NbMonthAnalysis {
       s"""
          |select '${monthid}' as monthid, mdn, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
-         |        "业务划分", upflow, downflow, sessions, '-1' as uppacket,'-1' as downpacket, PGWIP
+         |        '-1' as busi, upflow, downflow, sessions, '-1' as uppacket,'-1' as downpacket, PGWIP
          |from(
          |    select mdn, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
-         |        "业务划分", sum(upflow) as upflow, sum(downflow) as downflow,
+         |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        sum(sessions) as sessions,  PGWIP
          |    from ${cdrTempTable}
          |    group by mdn, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
-         |        "业务划分", PGWIP
+         |        PGWIP
          |) t
        """.stripMargin)
 

@@ -1,21 +1,21 @@
-package com.zyuc.stat.iotCdrAnalysis.etl
+package com.zyuc.stat.nbiot.etl
 
 import com.alibaba.fastjson.{JSON, JSONObject}
 import com.zyuc.stat.iot.etl.util.CDRConverterUtils
 import com.zyuc.stat.utils.FileUtils
 import org.apache.hadoop.fs.FileSystem
-import org.apache.spark.{Logging, SparkConf, SparkContext}
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
-import org.apache.spark.sql.hive.HiveContext
 import org.apache.hadoop.io.{LongWritable, Text}
 import org.apache.hadoop.mapred.TextInputFormat
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.{Logging, SparkConf, SparkContext}
 
 import scala.collection.mutable
 
 /**
   * Created by liuzk on 18-5-28.
   */
-object PDSNETL extends Logging{
+object HACCGETL extends Logging{
   def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
     val sqlContext = parentContext.newSession()
     val sc = sqlContext.sparkContext
@@ -59,7 +59,7 @@ object PDSNETL extends Logging{
         val jsonRDD = sc.hadoopFile(location,classOf[TextInputFormat],classOf[LongWritable],classOf[Text],1)
           .map(p => new String(p._2.getBytes, 0, p._2.getLength, "GBK"))
         val fileDF = sqlContext.read.json(jsonRDD)
-        dataDF = CDRConverterUtils.parse(fileDF, CDRConverterUtils.LOG_TYPE_PDSN)
+        dataDF = CDRConverterUtils.parse(fileDF, CDRConverterUtils.LOG_TYPE_HACCG)
       }
       else {
         logInfo(s"No file found during time: $loadTime")
@@ -119,9 +119,9 @@ object PDSNETL extends Logging{
       """
         |{
         | "appName"      : "mh_testCDR",
-        | "loadTime"     : "201805281526",
-        | "inputPath"    : "hdfs://nameservice1/user/iot/data/cdr/src/pdsn",
-        | "outputPath"   : "hdfs://nameservice1/user/iot/data/cdr/transform/pdsn",
+        | "loadTime"     : "201805281515",
+        | "inputPath"    : "/user/iot/data/cdr/src/haccg",
+        | "outputPath"   : "/user/iot/data/cdr/transform/haccg",
         | "fileWildcard" : "*"
         |}
       """.stripMargin
@@ -130,3 +130,4 @@ object PDSNETL extends Logging{
     val rst = doJob(sqlContext, fileSystem, params)
   }
 }
+

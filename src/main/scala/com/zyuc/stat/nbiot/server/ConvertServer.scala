@@ -12,8 +12,7 @@ import com.sun.net.httpserver.{Headers, HttpExchange, HttpHandler, HttpServer}
 import com.zyuc.stat.app.{FileManage, HDFSFiles}
 import com.zyuc.stat.epc.etl.{EpcGwEtl, EpcMmeEtl}
 import com.zyuc.stat.iot.etl.{MMELogETL, SMSCETL}
-import com.zyuc.stat.nbiot.etl.{CDRETL, MMELogETL_New}
-import com.zyuc.stat.iotCdrAnalysis.etl.{HACCGETL, PDSNETL, PGWETL}
+import com.zyuc.stat.nbiot.etl._
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SQLContext

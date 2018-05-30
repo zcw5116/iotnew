@@ -1,22 +1,22 @@
-package com.zyuc.stat.iotCdrAnalysis.analysis.day
+package com.zyuc.stat.iot.analysis.day
 
 import com.zyuc.stat.properties.ConfigProperties
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-5-29.
   */
-object PdsnDayAnalysis {
+object HaccgDayAnalysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/pdsn/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/pdsn/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/haccg/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/haccg/")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
@@ -25,7 +25,7 @@ object PdsnDayAnalysis {
     val dayid = dataTime.substring(0, 8)
     val partitionPath = s"/d=$d/h=*/m5=*"
 
-    val cdrTempTable = "pdsnTempTable"
+    val cdrTempTable = "haccgTempTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath)
       .selectExpr("mdn","acce_province","acce_region","bsid","siteid","pdsn_address",  "originating as upflow","termination as downflow",
         "substr(meid,1,8) as tac","nai","home_agent")
@@ -58,7 +58,7 @@ object PdsnDayAnalysis {
          |        c.pdsn_address as PDSNIP,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.nai as net, c.tac as TerminalModel,
-         |        "业务划分---",  c.upflow, c.downflow, c.home_agent as HAIP
+         |        c.upflow, c.downflow, c.home_agent as HAIP
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
          |left join ${bsInfoTable} b on(c.siteid = b.enbid and c.acce_province=b.provname)
@@ -71,23 +71,23 @@ object PdsnDayAnalysis {
       s"""
          |select '${dayid}' as dayid, mdn, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
-         |        "业务划分", upflow, downflow, sessions, '-1' as duration, HAIP
+         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
          |from(
          |    select mdn, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
-         |        "业务划分", sum(upflow) as upflow, sum(downflow) as downflow,
+         |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, HAIP
          |    from ${cdrMdnTable}
          |    group by mdn, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
-         |        "业务划分", HAIP
+         |        HAIP
          |) t
        """.stripMargin)
 
     resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + dayid)
 
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
-    val partitonTable = "iot_stat_cdr_pdsn_day"
+    val partitonTable = "iot_stat_cdr_haccg_day"
     val sql = s"alter table $partitonTable add IF NOT EXISTS partition(dayid='$dayid')"
     sqlContext.sql(sql)
 

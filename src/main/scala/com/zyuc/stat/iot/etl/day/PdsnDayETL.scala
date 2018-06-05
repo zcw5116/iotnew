@@ -10,7 +10,7 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object PdsnDayETL {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180601")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -46,7 +46,7 @@ object PdsnDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid
+         |select mdn, custid, prodtype, beloprov, belocity
          |from ${tmpUserTable}
          |where isnb = '0'
        """.stripMargin)
@@ -54,14 +54,14 @@ object PdsnDayETL {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  c.mdn, b.provname as provid, nvl(b.cityname,'-') as lanid, c.bsid,
+         |select  c.mdn, c.acce_province as provid, c.acce_region as lanid, c.bsid,
          |        c.pdsn_address as PDSNIP,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.nai as net, c.tac as TerminalModel,
          |        c.upflow, c.downflow, c.home_agent as HAIP
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
-         |left join ${bsInfoTable} b on(c.siteid = b.enbid and c.acce_province=b.provname)
+         |left join ${bsInfoTable} b on(c.siteid = b.enbid)
        """.stripMargin)
 
     val cdrMdnTable = "spark_cdrmdn"
@@ -69,7 +69,7 @@ object PdsnDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select '${dayid}' as dayid, mdn, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select mdn, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
          |from(
@@ -84,7 +84,7 @@ object PdsnDayETL {
          |) t
        """.stripMargin)
 
-    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + dayid)
+    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
 
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     val partitonTable = "iot_stat_cdr_pdsn_day"

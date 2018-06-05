@@ -10,7 +10,7 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object PgwDayETL {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180518")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -47,7 +47,7 @@ object PgwDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid
+         |select mdn, custid, prodtype, beloprov, belocity
          |from ${tmpUserTable}
          |where isnb = '0'
        """.stripMargin)
@@ -70,7 +70,7 @@ object PgwDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select '${dayid}' as dayid, mdn, provid, lanid, eci, sgwip, apn,
+         |select mdn, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, duration, PGWIP
          |from(
@@ -85,7 +85,7 @@ object PgwDayETL {
          |) t
        """.stripMargin)
 
-    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + dayid)
+    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
 
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     val partitonTable = "iot_stat_cdr_pgw_day"

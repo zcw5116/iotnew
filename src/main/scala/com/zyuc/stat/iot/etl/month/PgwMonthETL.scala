@@ -20,7 +20,7 @@ object PgwMonthETL {
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val monthid = dataTime.substring(0, 6)
-    val partitionPath = s"/d=$monthid*"
+    val partitionPath = s"/dayid=$monthid*"
 
     val cdrTempTable = "pgwMonthTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath).registerTempTable(cdrTempTable)
@@ -28,7 +28,7 @@ object PgwMonthETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select '${monthid}' as monthid, mdn, provid, lanid, eci, sgwip, apn,
+         |select mdn, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, duration, PGWIP
          |from(
@@ -43,7 +43,7 @@ object PgwMonthETL {
          |) t
        """.stripMargin)
 
-    resultDF.coalesce(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + monthid)
+    resultDF.coalesce(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "monthid=" + monthid)
 
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     val partitonTable = "iot_stat_cdr_pgw_month"

@@ -10,7 +10,7 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object NbDayETL {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180503")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -47,7 +47,7 @@ object NbDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid
+         |select mdn, custid, prodtype, beloprov, belocity
          |from ${tmpUserTable}
          |where isnb = '1'
        """.stripMargin)
@@ -58,7 +58,7 @@ object NbDayETL {
          |select  c.mdn, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
          |        c.servingnodeaddress as sgwip,c.accesspointnameni as apn,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
-         |        u.beloprov as own_provid, u.belocity as own_lanid,  c.tac,
+         |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac,
          |        c.upflow, c.downflow, c.p_gwaddress as PGWIP
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
@@ -70,22 +70,22 @@ object NbDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select '${dayid}' as dayid, mdn, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_provid, own_lanid, tac,
+         |select mdn, provid, lanid, eci, sgwip, apn,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as uppacket,'-1' as downpacket, PGWIP
          |from(
          |    select mdn, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_provid, own_lanid, tac,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, PGWIP
          |    from ${cdrMdnTable}
          |    group by mdn, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_provid, own_lanid, tac,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        PGWIP
          |) t
        """.stripMargin)
 
-    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + dayid)
+    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
 
     sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     val partitonTable = "iot_stat_cdr_nb_day"

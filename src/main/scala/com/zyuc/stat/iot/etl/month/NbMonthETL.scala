@@ -28,16 +28,16 @@ object NbMonthETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, provid, lanid, eci, sgwip, apn,
+         |select mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as uppacket,'-1' as downpacket, PGWIP
          |from(
-         |    select mdn, provid, lanid, eci, sgwip, apn,
+         |    select mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        sum(sessions) as sessions,  PGWIP
          |    from ${cdrTempTable}
-         |    group by mdn, provid, lanid, eci, sgwip, apn,
+         |    group by mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        PGWIP
          |) t

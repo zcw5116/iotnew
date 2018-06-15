@@ -27,7 +27,7 @@ object NbDayETL {
 
     val cdrTempTable = "nbTempTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("mdn","prov","city","t806","enbid","servingnodeaddress","accesspointnameni",
+      .selectExpr("mdn","enbid","prov","city","t806","servingnodeaddress","accesspointnameni",
         "l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow",
         "substr(servedimeisv,1,8) as tac","p_gwaddress")
       .registerTempTable(cdrTempTable)
@@ -55,7 +55,7 @@ object NbDayETL {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  c.mdn, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
+         |select  c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
          |        c.servingnodeaddress as sgwip,c.accesspointnameni as apn,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac,
@@ -70,16 +70,16 @@ object NbDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, provid, lanid, eci, sgwip, apn,
+         |select mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as uppacket,'-1' as downpacket, PGWIP
          |from(
-         |    select mdn, provid, lanid, eci, sgwip, apn,
+         |    select mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, PGWIP
          |    from ${cdrMdnTable}
-         |    group by mdn, provid, lanid, eci, sgwip, apn,
+         |    group by mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        PGWIP
          |) t

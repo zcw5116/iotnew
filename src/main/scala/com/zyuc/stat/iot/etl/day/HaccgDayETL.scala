@@ -27,8 +27,8 @@ object HaccgDayETL {
 
     val cdrTempTable = "haccgTempTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("mdn","acce_province","acce_region","bsid","siteid","pdsn_address",  "originating as upflow","termination as downflow",
-        "substr(meid,1,8) as tac","nai","home_agent")
+      .selectExpr("mdn","siteid","acce_province","acce_region","bsid","pdsn_address",  "originating as upflow",
+        "termination as downflow","substr(meid,1,8) as tac","nai","home_agent")
       .registerTempTable(cdrTempTable)
 
 
@@ -54,7 +54,7 @@ object HaccgDayETL {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  c.mdn, c.acce_province as provid, c.acce_region as lanid, c.bsid,
+         |select  c.mdn, c.siteid, c.acce_province as provid, c.acce_region as lanid, c.bsid,
          |        c.pdsn_address as PDSNIP,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.nai as net, c.tac as TerminalModel,
@@ -69,16 +69,16 @@ object HaccgDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
          |from(
-         |    select mdn, provid, lanid, bsid, PDSNIP,
+         |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, HAIP
          |    from ${cdrMdnTable}
-         |    group by mdn, provid, lanid, bsid, PDSNIP,
+         |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        HAIP
          |) t

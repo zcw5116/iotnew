@@ -28,16 +28,16 @@ object PdsnMonthETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
          |from(
-         |    select mdn, provid, lanid, bsid, PDSNIP,
+         |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, HAIP
          |    from ${cdrTempTable}
-         |    group by mdn, provid, lanid, bsid, PDSNIP,
+         |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
          |        HAIP
          |) t

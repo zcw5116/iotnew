@@ -58,7 +58,7 @@ object PgwDayETL {
          |select  c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
          |        c.servingnodeaddress as sgwip, c.accesspointnameni as apn,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
-         |        u.beloprov as own_provid, u.belocity as own_lanid, c.rattype as net, c.tac as TerminalModel,
+         |        u.beloprov as own_provid, u.belocity as own_lanid, c.rattype, c.tac as TerminalModel,
          |        c.upflow, c.downflow,c.duration,c.p_gwaddress as PGWIP
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
@@ -71,16 +71,16 @@ object PgwDayETL {
     val resultDF = sqlContext.sql(
       s"""
          |select mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, duration, PGWIP
          |from(
          |    select mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(distinct mdn) as sessions, sum(duration) as duration, PGWIP
          |    from ${cdrMdnTable}
          |    group by mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, net, TerminalModel,
+         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        PGWIP
          |) t
        """.stripMargin)

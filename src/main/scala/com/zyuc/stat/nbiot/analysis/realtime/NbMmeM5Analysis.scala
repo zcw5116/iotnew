@@ -56,17 +56,27 @@ object NbMmeM5Analysis {
     val nbTable = "spark_nb"
     sqlContext.sql(
       s"""
-         |select u.custid, b.provname as prov, nvl(b.cityname,'-') as city, m.result
+         |select u.custid, u.mdn, b.provname as prov, nvl(b.cityname,'-') as city, m.result
          |from ${nbM5Table} m, ${userTable} u, ${bsInfoTable} b
          |where u.mdn=m.msisdn and m.enbid=b.enbid
        """.stripMargin).registerTempTable(nbTable)
 
     val statDF = sqlContext.sql(
-      s"""select custid, prov, city, count(*) as reqcnt,
+      s"""
+         |select a.custid, a.prov, a.city, a.reqcnt, a.failreqcnt, nvl(b.failusers,0) as failusers
+         |from
+         |(select custid, prov, city, count(*) as reqcnt,
          |       sum(case when result='failed' then 1 else 0 end) as failreqcnt
          |from ${nbTable}
          |group by custid, prov, city
+         |)a
+         |left join
+         |(select custid, prov, city, count(distinct mdn) as failusers
+         |from ${nbTable} where result='failed' group by custid, prov, city
+         |)b
+         |on (a.custid=b.custid and a.prov=b.prov and a.city=b.city)
        """.stripMargin)
+
 
     val resultDF = statDF.
       withColumn("gather_cycle", lit(dataTime + "00")).
@@ -81,10 +91,13 @@ object NbMmeM5Analysis {
       "failreqcnt as gather_value").
       withColumn("gather_type", lit("FAILREQS"))
 
+    val failusersDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "custid", "city", "prov",
+      "failusers as gather_value").
+      withColumn("gather_type", lit("FAILUSERS"))
 
     // 将结果写入到 hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
-    reqsDF.unionAll(failreqsDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+    reqsDF.unionAll(failreqsDF).unionAll(failusersDF).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection

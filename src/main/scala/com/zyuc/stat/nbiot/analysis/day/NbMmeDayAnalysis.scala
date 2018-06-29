@@ -3,6 +3,7 @@ package com.zyuc.stat.nbiot.analysis.day
 import java.sql.PreparedStatement
 
 import com.zyuc.iot.utils.DbUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.hive.HiveContext
@@ -272,6 +273,8 @@ object NbMmeDayAnalysis {
 
     allResultDF.write.mode(SaveMode.Overwrite).format("orc").save(outputResultPath)
 
+    CommonUtils.updateBreakTable("MMELogDay", dd)
+
   }
 
   def mmeDelete(summCycle:String, meas_obj:String) = {
@@ -333,6 +336,8 @@ object NbMmeDayAnalysis {
       pstmt.setString(9, meas_obj)
       pstmt.setLong(10, meas_value)
       pstmt.setLong(11, meas_rank)
+
+      i += 1
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch

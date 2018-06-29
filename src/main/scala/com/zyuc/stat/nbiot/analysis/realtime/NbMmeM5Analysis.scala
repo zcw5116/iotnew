@@ -135,6 +135,8 @@ object NbMmeM5Analysis {
       pstmt.setString(7, gather_type)
       pstmt.setDouble(8, gather_value)
       pstmt.setDouble(9, gather_value)
+
+      i += 1
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch

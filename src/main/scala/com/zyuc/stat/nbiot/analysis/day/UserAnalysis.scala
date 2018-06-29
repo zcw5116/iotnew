@@ -3,6 +3,7 @@ package com.zyuc.stat.nbiot.analysis.day
 import java.sql.PreparedStatement
 
 import com.zyuc.iot.utils.DbUtils
+import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.hive.HiveContext
@@ -108,6 +109,8 @@ object UserAnalysis {
       pstmt.setString(8, meas_obj)
       pstmt.setLong(9, meas_value)
       pstmt.setInt(10, meas_rank)
+
+      i += 1
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch
@@ -118,6 +121,8 @@ object UserAnalysis {
     dbConn.commit()
     pstmt.close()
     dbConn.close()
+
+    CommonUtils.updateBreakTable("base", dayid)
 
   }
 }

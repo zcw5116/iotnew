@@ -125,6 +125,8 @@ object NbMsgM5Analysis {
       pstmt.setString(7, gather_type)
       pstmt.setLong(8, gather_value)
       pstmt.setLong(9, gather_value)
+
+      i += 1
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch

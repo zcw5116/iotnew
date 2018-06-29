@@ -143,6 +143,8 @@ object NbMsgDayAnalysis {
       pstmt.setString(8, meas_obj)
       pstmt.setInt(9, meas_rank)
       pstmt.setLong(10, meas_value)
+
+      i += 1
       pstmt.addBatch()
       if (i % 1000 == 0) {
         pstmt.executeBatch

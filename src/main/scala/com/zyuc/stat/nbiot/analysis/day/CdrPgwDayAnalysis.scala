@@ -8,17 +8,17 @@ import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
 /**
-  * Created by liuzk on 18-5-10.
+  * Created by liuzk on 18-6-26.
   */
-object NbCdrDayAnalysis {
+object CdrPgwDayAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180504")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180626")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/nb")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/pgw/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/pgw")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
@@ -47,7 +47,7 @@ object NbCdrDayAnalysis {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -57,7 +57,7 @@ object NbCdrDayAnalysis {
          |as
          |select mdn, custid
          |from ${tmpUserTable}
-         |where isnb = '1'
+         |where isnb = '0'
        """.stripMargin)
 
     // 关联基本信息
@@ -176,7 +176,7 @@ object NbCdrDayAnalysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_nb_data_summ_d
+         |insert into iot_ana_pgw_data_summ_d
          |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_value, meas_rank)
          |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
@@ -222,9 +222,10 @@ object NbCdrDayAnalysis {
     pstmt.close()
     dbConn.close()
 
-    CommonUtils.updateBreakTable("TermType", dd)
-    CommonUtils.updateBreakTable("ActiveUser", dd)
-    CommonUtils.updateBreakTable("FluxDay", dd)
+    CommonUtils.updateBreakTable("TermType_pgw", dd)
+    CommonUtils.updateBreakTable("ActiveUser_pgw", dd)
+    CommonUtils.updateBreakTable("FluxDay_pgw", dd)
 
   }
 }
+

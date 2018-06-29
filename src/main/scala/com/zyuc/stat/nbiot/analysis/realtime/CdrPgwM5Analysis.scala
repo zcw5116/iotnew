@@ -8,21 +8,19 @@ import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.functions._
 
 /**
-  * Created by zhoucw on 18-5-11 下午10:29.
+  * Created by liuzk on 18-6-26.
   */
-object NbCdrM5Analysis {
+object CdrPgwM5Analysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_201805161510")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/cdr/analy_realtime/nb")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/pgw/data")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/cdr/analy_realtime/pgw")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
-
-    val repartitionNum = sc.getConf.get("spark.app.repartitionNum", "10").toInt
 
     val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/iot/data/basic/IotBSInfo/data/")
     val bsInfoTable = "IOTBSInfoTable"
@@ -42,7 +40,7 @@ object NbCdrM5Analysis {
     // 过滤NB的用户，将用户的数据广播出去，如果用户的数据过大， 需要修改参数spark.sql.autoBroadcastJoinThreshold，
     // 具体根据spark web ui的DGA执行计划调整, spark.sql.autoBroadcastJoinThreshold值默认为10M
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_user"
@@ -52,7 +50,7 @@ object NbCdrM5Analysis {
          |as
          |select mdn, custid
          |from ${tmpUserTable}
-         |where isnb = '1'
+         |where isnb = '0'
        """.stripMargin)
 
     // 关联custid
@@ -67,15 +65,15 @@ object NbCdrM5Analysis {
        """.stripMargin).registerTempTable(nbTable)
 
     // 统计分析
-     val resultStatDF = sqlContext.sql(
-       s"""
-          |select  custid, prov, city, upflow, downflow, (upflow + downflow) as totalflow
-          |from
-          |(
-          |    select custid, prov, city, sum(upflow) as upflow, sum(downflow) as downflow
-          |    from ${nbTable}
-          |    group by custid, prov, city
-          |) t
+    val resultStatDF = sqlContext.sql(
+      s"""
+         |select  custid, prov, city, upflow, downflow, (upflow + downflow) as totalflow
+         |from
+         |(
+         |    select custid, prov, city, sum(upflow) as upflow, sum(downflow) as downflow
+         |    from ${nbTable}
+         |    group by custid, prov, city
+         |) t
         """.stripMargin)
 
     val resultDF = resultStatDF.
@@ -94,14 +92,14 @@ object NbCdrM5Analysis {
 
     // 将结果写入到hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
-    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").repartition(repartitionNum).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_5min_nb_cdr
+         |insert into iot_ana_5min_cdr_pgw
          |(gather_cycle, gather_date, gather_time,cust_id, city, province, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?)
          |on duplicate key update gather_value=?
@@ -146,7 +144,7 @@ object NbCdrM5Analysis {
     dbConn.close()
 
     // 更新断点时间
-    CommonUtils.updateBreakTable("iot_ana_5min_nb_cdr", dataTime+"00")
+    CommonUtils.updateBreakTable("iot_ana_5min_cdr_pgw", dataTime+"00")
 
   }
 }

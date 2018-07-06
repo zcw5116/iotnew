@@ -15,7 +15,6 @@ import scala.collection.mutable
 /**
   * Created by liuzk on 18-5-28.
   */
-
 object PGWETL extends Logging{
   def doJob(parentContext: SQLContext, fileSystem: FileSystem, params: JSONObject): String = {
     val sqlContext = parentContext.newSession()
@@ -120,9 +119,9 @@ object PGWETL extends Logging{
       """
         |{
         | "appName"      : "mh_testCDR",
-        | "loadTime"     : "201805281515",
-        | "inputPath"    : "/user/iot/data/cdr/src/pgw",
-        | "outputPath"   : "/user/iot/data/cdr/transform/pgw",
+        | "loadTime"     : "201806071113",
+        | "inputPath"    : "hdfs://nameservice1/user/iot/data/cdr/src/pgw",
+        | "outputPath"   : "hdfs://nameservice1/user/iot/data/cdr/transform/pgw",
         | "fileWildcard" : "*"
         |}
       """.stripMargin

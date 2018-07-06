@@ -111,7 +111,7 @@ object HACCGETL extends Logging{
   }
 
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("mh_testCDR")
+    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("mh_testCDR")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -120,8 +120,8 @@ object HACCGETL extends Logging{
         |{
         | "appName"      : "mh_testCDR",
         | "loadTime"     : "201805281515",
-        | "inputPath"    : "/user/iot/data/cdr/src/haccg",
-        | "outputPath"   : "/user/iot/data/cdr/transform/haccg",
+        | "inputPath"    : "hdfs://spark1234:8020/user/iot/data/cdr/src/haccg",
+        | "outputPath"   : "hdfs://spark1234:8020/user/iot/data/cdr/transform/haccg",
         | "fileWildcard" : "*"
         |}
       """.stripMargin

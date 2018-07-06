@@ -112,7 +112,7 @@ object CDRETL extends Logging{
   }
 
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("mh_testCDR")
+    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("mh_testCDR")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -121,8 +121,8 @@ object CDRETL extends Logging{
         |{
         | "appName"      : "mh_testCDR",
         | "loadTime"     : "201805100337",
-        | "inputPath"    : "hdfs://nameservice1/user/epciot/data/cdr/src/nb",
-        | "outputPath"   : "hdfs://nameservice1/user/epciot/data/cdr/transform/nb",
+        | "inputPath"    : "hdfs://spark1234:8020/user/iot/data/cdr/src/nb",
+        | "outputPath"   : "hdfs://spark1234:8020/user/iot/data/cdr/transform/nb",
         | "fileWildcard" : "*"
         |}
       """.stripMargin

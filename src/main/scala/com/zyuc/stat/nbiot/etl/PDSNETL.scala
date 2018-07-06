@@ -111,7 +111,7 @@ object PDSNETL extends Logging{
   }
 
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("mh_testCDR")
+    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("mh_testCDR")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -120,8 +120,8 @@ object PDSNETL extends Logging{
         |{
         | "appName"      : "mh_testCDR",
         | "loadTime"     : "201805281515",
-        | "inputPath"    : "/user/iot/data/cdr/src/pdsn",
-        | "outputPath"   : "/user/iot/data/cdr/transform/pdsn",
+        | "inputPath"    : "hdfs://spark1234:8020/user/iot/data/cdr/src/pdsn",
+        | "outputPath"   : "hdfs://spark1234:8020/user/iot/data/cdr/transform/pdsn",
         | "fileWildcard" : "*"
         |}
       """.stripMargin

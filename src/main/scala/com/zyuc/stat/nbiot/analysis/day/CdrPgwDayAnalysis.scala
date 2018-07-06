@@ -17,7 +17,7 @@ object CdrPgwDayAnalysis {
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/pgw/data")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/transform/pgw/data")
     val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/pgw")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
@@ -53,12 +53,10 @@ object CdrPgwDayAnalysis {
     val userTable = "spark_User"
     sqlContext.sql(
       s"""
-         |cache table ${userTable}
-         |as
          |select mdn, custid
          |from ${tmpUserTable}
          |where isnb = '0'
-       """.stripMargin)
+       """.stripMargin).registerTempTable(userTable)
 
     // 关联基本信息
     val mdnDF = sqlContext.sql(
@@ -70,8 +68,13 @@ object CdrPgwDayAnalysis {
          |left join ${bsInfoTable} b on(c.enbid = b.enbid and c.prov=b.provname)
          |left join ${terminalTable} t on(c.tac = t.tac)
        """.stripMargin)
+
+    val broadvalues = sc.broadcast(mdnDF)
+    val mdndf = broadvalues.value
     val cdrMdnTable = "spark_cdrmdn"
-    mdnDF.registerTempTable(cdrMdnTable)
+    mdndf.registerTempTable(cdrMdnTable)
+
+
 
     // 基站的信息
     val bsStatDF = sqlContext.sql(

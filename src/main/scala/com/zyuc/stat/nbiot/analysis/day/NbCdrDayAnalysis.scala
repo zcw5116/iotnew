@@ -90,8 +90,8 @@ object NbCdrDayAnalysis {
          |    group by custid, enbid, prov, city
          |) t
        """.stripMargin)
-    val bsUpFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district","'BS' as dim_type", "enbid as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
-    val bsDownFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val bsUpFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district","'BS' as dim_type", "enbid as dim_obj", "'OUTFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val bsDownFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj", "'INFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
     val bsTotalFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj", "'TOTALFLOW' as meas_obj", "totalflow as meas_value", "downrank as meas_rank" )
     val bsActiveFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
     val bsSessionFlow = bsStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov","district","'BS' as dim_type", "enbid as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )
@@ -116,8 +116,8 @@ object NbCdrDayAnalysis {
          |    group by custid, prov
          |) t
        """.stripMargin)
-    val provUpFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
-    val provDownFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val provUpFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'OUTFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val provDownFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'INFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
     val provTotalFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'TOTALFLOW' as meas_obj", "totalflow as meas_value", "downrank as meas_rank" )
     val provActiveFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
     val provSessionFlow = provStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid","city","prov", "district", "'PROV' as dim_type", "prov as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )
@@ -142,8 +142,8 @@ object NbCdrDayAnalysis {
          |    group by custid, prov, city
          |) t
        """.stripMargin)
-    val cityUpFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'INFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
-    val cityDownFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'OUTFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
+    val cityUpFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'OUTFLOW' as meas_obj", "upflow as meas_value", "uprank as meas_rank" )
+    val cityDownFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'INFLOW' as meas_obj", "downflow as meas_value", "downrank as meas_rank" )
     val cityTotalFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'TOTALFLOW' as meas_obj", "totalflow as meas_value", "downrank as meas_rank" )
     val cityActiveFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'ACTIVEUSERS' as meas_obj", "activeUsers as meas_value", "activerank as meas_rank" )
     val citySessionFlow = cityStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'CITY' as dim_type", "city as dim_obj", "'SESSIONS' as meas_obj", "activeSessions as meas_value", "sessionrank as meas_rank" )

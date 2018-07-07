@@ -15,8 +15,8 @@ object PdsnMonthETL {
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/summ_d/pdsn")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_m/pdsn/")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_d/pdsn")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot_ete/data/cdr/summ_m/pdsn/")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val monthid = dataTime.substring(0, 6)

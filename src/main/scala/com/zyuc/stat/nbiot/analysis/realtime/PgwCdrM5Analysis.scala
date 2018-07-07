@@ -10,7 +10,7 @@ import org.apache.spark.sql.functions._
 /**
   * Created by liuzk on 18-6-26.
   */
-object CdrPgwM5Analysis {
+object PgwCdrM5Analysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_201805161510")
     val sc = new SparkContext(sparkConf)
@@ -99,7 +99,7 @@ object CdrPgwM5Analysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_5min_cdr_pgw
+         |insert into iot_ana_5min_4g_cdr
          |(gather_cycle, gather_date, gather_time,cust_id, city, province, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?)
          |on duplicate key update gather_value=?
@@ -144,7 +144,7 @@ object CdrPgwM5Analysis {
     dbConn.close()
 
     // 更新断点时间
-    CommonUtils.updateBreakTable("iot_ana_5min_cdr_pgw", dataTime+"00")
+    CommonUtils.updateBreakTable("iot_ana_5min_4g_cdr", dataTime+"00")
 
   }
 }

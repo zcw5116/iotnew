@@ -10,33 +10,31 @@ import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
 /**
-  * Created by zhoucw on 18-5-11 下午10:29.
+  * Created by liuzk on 18-7-13.
   */
-object NbMsgDayAnalysis {
+object PgwMsgDayAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("NbM5Analysis_20180510")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("PgwMsgDayAnalysis_20180713")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
     val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/msg/transform/nb/data")
-    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/msg/summ_d/nb")
+    val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/msg/summ_d/pgw")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
     val dayid = appName.substring(appName.lastIndexOf("_") + 1)
     val d= dayid.substring(2,8)
 
-    val nbpath = inputPath + "/d=" + d + "/h=*/m5*/"
+    val pgwpath = inputPath + "/d=" + d + "/h=*/m5*/"
 
-    val nbM5DF = sqlContext.read.format("orc").load(nbpath)
-    val nbM5Table = "spark_nbm5"
-    nbM5DF.registerTempTable(nbM5Table)
+    val pgwM5DF = sqlContext.read.format("orc").load(pgwpath)
+    val pgwM5Table = "spark_pgwm5"
+    pgwM5DF.registerTempTable(pgwM5Table)
 
-    // 过滤NB的用户，将用户的数据广播出去，如果用户的数据过大， 需要修改参数spark.sql.autoBroadcastJoinThreshold，
-    // 具体根据spark web ui的DGA执行计划调整, spark.sql.autoBroadcastJoinThreshold值默认为10M
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_user"
@@ -46,31 +44,31 @@ object NbMsgDayAnalysis {
          |as
          |select mdn, custid
          |from ${tmpUserTable}
-         |where isnb = '1'
+         |where isnb = '0'
        """.stripMargin)
 
     // 关联custid
-    val nbTable = "spark_nb"
+    val pgwTable = "spark_pgw"
     sqlContext.sql(
       s"""
          |select u.custid,
          |       'r' type, u.mdn
-         |from ${nbM5Table} n, ${userTable} u
+         |from ${pgwM5Table} n, ${userTable} u
          |where n.called_number = u.mdn
          |union all
          |select u.custid,
          |       's' type, u.mdn
-         |from ${nbM5Table} n, ${userTable} u
+         |from ${pgwM5Table} n, ${userTable} u
          |where n.calling_number = u.mdn
-       """.stripMargin).registerTempTable(nbTable)
+       """.stripMargin).registerTempTable(pgwTable)
 
 
     // 统计分析
-     val resultStatDF = sqlContext.sql(
-       s"""
-          |select custid, count(*) as msgnum, row_number() over(partition by custid order by custid) rn
-          |from ${nbTable}
-          |group by custid
+    val resultStatDF = sqlContext.sql(
+      s"""
+         |select custid, count(*) as msgnum, row_number() over(partition by custid order by custid) rn
+         |from ${pgwM5Table}
+         |group by custid
         """.stripMargin)
 
     val resultDF = resultStatDF.
@@ -96,7 +94,7 @@ object NbMsgDayAnalysis {
     // 先删除结果
     val deleteSQL =
       s"""
-         |delete from iot_ana_nb_data_summ_d where summ_cycle=? and meas_obj=?
+         |delete from iot_ana_4g_data_summ_d where summ_cycle=? and meas_obj=?
        """.stripMargin
     var pstmt: PreparedStatement = null
     pstmt = dbConn.prepareStatement(deleteSQL)
@@ -109,7 +107,7 @@ object NbMsgDayAnalysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_nb_data_summ_d
+         |insert into iot_ana_4g_data_summ_d
          |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_rank, meas_value)
          |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
@@ -156,7 +154,7 @@ object NbMsgDayAnalysis {
     pstmt.close()
     dbConn.close()
 
-
-    CommonUtils.updateBreakTable("iot_nb_MSGS", dayid)
+    CommonUtils.updateBreakTable("iot_4g_MSGS", dayid)
   }
 }
+

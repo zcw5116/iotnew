@@ -222,9 +222,9 @@ object NbCdrDayAnalysis {
     pstmt.close()
     dbConn.close()
 
-    CommonUtils.updateBreakTable("TermType", dd)
-    CommonUtils.updateBreakTable("ActiveUser", dd)
-    CommonUtils.updateBreakTable("FluxDay", dd)
+    CommonUtils.updateBreakTable("iot_nb_TermType", dd)
+    CommonUtils.updateBreakTable("iot_nb_ActiveUser", dd)
+    CommonUtils.updateBreakTable("iot_nb_FluxDay", dd)
 
   }
 }

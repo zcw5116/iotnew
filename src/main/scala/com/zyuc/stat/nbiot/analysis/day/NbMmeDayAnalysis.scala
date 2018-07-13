@@ -273,7 +273,7 @@ object NbMmeDayAnalysis {
 
     allResultDF.write.mode(SaveMode.Overwrite).format("orc").save(outputResultPath)
 
-    CommonUtils.updateBreakTable("MMELogDay", dd)
+    CommonUtils.updateBreakTable("iot_nb_MMELogDay", dd)
 
   }
 

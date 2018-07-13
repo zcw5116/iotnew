@@ -12,7 +12,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 /**
   * Created by zhoucw on 18-5-15 下午1:39.
   */
-object UserAnalysis {
+object PgwUserAnalysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setAppName("userAnalysis_20180510").setMaster("local[2]")
     val sc = new SparkContext(sparkConf)
@@ -20,16 +20,16 @@ object UserAnalysis {
 
     val appName = sc.getConf.get("spark.app.name")
     val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/baseuser/data/")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/baseuser/summ_d/nb/")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/baseuser/summ_d/pgw/")
     val userDataDayid=sc.getConf.get("spark.app.userDataDayid","20180510")
 
     val dayid = appName.substring(appName.indexOf("_") + 1)
 
 
     val inputData = inputPath + "d=" + userDataDayid
-    val nbUserDF = sqlContext.read.format("orc").load(inputData).filter("isnb='1'")
-    val nbTable = "spark_nb"
-    nbUserDF.registerTempTable(nbTable)
+    val pgwUserDF = sqlContext.read.format("orc").load(inputData).filter("isnb='0'")
+    val pgwTable = "spark_nb"
+    pgwUserDF.registerTempTable(pgwTable)
     val statDF = sqlContext.sql(
       s"""
          |select custid,prodtype as dim_obj, cnt as meas_value,
@@ -37,7 +37,7 @@ object UserAnalysis {
          |from
          |(
          |    select custid, prodtype, count(*) as cnt
-         |    from ${nbTable}
+         |    from ${pgwTable}
          |    group by custid, prodtype
          |) t       """.stripMargin)
 
@@ -51,7 +51,7 @@ object UserAnalysis {
 
     // 将结果写入到hdfs
     val outputResult = outputPath + dayid
-      resultDF.selectExpr("summ_cycle", "custid", "city", "prov", "district",
+    resultDF.repartition(1).selectExpr("summ_cycle", "custid", "city", "prov", "district",
       "dim_type","dim_obj", "meas_obj", "meas_value", "meas_rank")
       .write.format("orc").mode(SaveMode.Overwrite).save(outputResult)
 
@@ -61,20 +61,20 @@ object UserAnalysis {
     // 先删除结果
     val deleteSQL =
       s"""
-         |delete from iot_ana_nb_data_summ_d where summ_cycle=? and meas_obj=?
+         |delete from iot_ana_4g_data_summ_d where summ_cycle=? and meas_obj=?
        """.stripMargin
     var pstmt: PreparedStatement = null
-    pstmt = dbConn.prepareStatement(deleteSQL)
+/*    pstmt = dbConn.prepareStatement(deleteSQL)
     pstmt.setString(1, dayid)
     pstmt.setString(2, "CRTUSERS")
     pstmt.executeUpdate()
-    pstmt.close()
+    pstmt.close()*/
 
     // 执行insert操作
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_nb_data_summ_d
+         |insert into iot_ana_4g_data_summ_d
          |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_value,meas_rank)
          |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
@@ -122,7 +122,8 @@ object UserAnalysis {
     pstmt.close()
     dbConn.close()
 
-    CommonUtils.updateBreakTable("iot_nb_base", dayid)
+    CommonUtils.updateBreakTable("iot_4g_base", dayid)
 
   }
 }
+

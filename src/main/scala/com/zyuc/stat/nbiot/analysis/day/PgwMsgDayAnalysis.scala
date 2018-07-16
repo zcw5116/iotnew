@@ -67,7 +67,7 @@ object PgwMsgDayAnalysis {
     val resultStatDF = sqlContext.sql(
       s"""
          |select custid, count(*) as msgnum, row_number() over(partition by custid order by custid) rn
-         |from ${pgwM5Table}
+         |from ${pgwTable}
          |group by custid
         """.stripMargin)
 

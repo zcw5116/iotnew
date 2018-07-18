@@ -12,12 +12,13 @@ object CustUser {
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
-    val nbpara = sc.getConf.get("spark.app.nbpara", "/user/epciot/data/metadata/nbpara/nbpara.csv")
+    val nbpara = sc.getConf.get("spark.app.nbpara", "/user/iot/data/metadata/nbpara/nbpara.csv")
     val datatime = sc.getConf.get("spark.app.datatime", "20180510")
-    val inputPath = sc.getConf.get("spark.app.inputpath", "/user/epciot/data/metadata/nb_staticpara")
-    val outputPath = sc.getConf.get("spark.app.outputpath", "/user/epciot/data/baseuser/data/")
+    val inputPath = sc.getConf.get("spark.app.inputpath", "/user/iot/data/metadata/nb_staticpara")
+    val outputPath = sc.getConf.get("spark.app.outputpath", "/user/iot/data/baseuser/data/")
 
-    val inputfiles = inputPath + "/all_userinfo_qureyes_" + datatime + ".txt"
+    //val inputfiles = inputPath + "/all_userinfo_qureyes_" + datatime + ".txt"
+    val inputfiles = inputPath + "/all_userinfo_qureyes_20180712.txt"
 
     // 广播小表,小表数据不能超过10M, 否则需要修改参数
     import sqlContext.implicits._

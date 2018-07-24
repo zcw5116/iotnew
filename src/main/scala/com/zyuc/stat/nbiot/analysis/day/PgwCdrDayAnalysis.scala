@@ -200,7 +200,7 @@ object PgwCdrDayAnalysis {
 
     val resultDF = bsResultDF.unionAll(cityResultDF).unionAll(provResultDF).unionAll(tacResultDF).filter("meas_value!=0")
     // 将结果写入到hdfs
-    val outputResult = outputPath + dayPath + "_20"
+    val outputResult = outputPath + dayPath
     resultDF.repartition(20).write.format("orc").mode(SaveMode.Overwrite).save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
@@ -250,7 +250,7 @@ object PgwCdrDayAnalysis {
 
               i += 1
               pstmt.addBatch()
-              if (i % 10000 == 0) {
+              if (i % 5000 == 0) {
                 pstmt.executeBatch
                 dbConn.commit()
               }

@@ -21,13 +21,13 @@ object BsSectionAnalysis extends Logging {
     logInfo("nowDate" +  nowDate.toString())
 
     var nowDay =   getDaysBefore(nowDate, 0)
-    nowDay = sc.getConf.get("spark.app.nowday", "180725")
+    nowDay = sc.getConf.get("spark.app.nowday", nowDay)
 
     val dateSDF = new SimpleDateFormat("yyMMdd")
     nowDate = dateSDF.parse(nowDay)
 
     var lastDay=   getDaysBefore(nowDate, 1)  //dateSDF.format(nowDate.getTime - 60*60*24*1000)
-    lastDay = sc.getConf.get("spark.app.lastday", "180720")
+    lastDay = sc.getConf.get("spark.app.lastday", lastDay)
     logInfo("nowDay: " + nowDay + ", lastDay: " + lastDay)
 
     val firstFlag:String = sc.getConf.get("spark.app.first", "0")
@@ -40,48 +40,29 @@ object BsSectionAnalysis extends Logging {
 
     deleteDirFile(outDir + "/dataTemp/" ,sc)
 
-    var relt = tempNodeBSectorInfo(nowDate, inputDir, tempSaveDir, sqlContext)
-    if (-1 == relt) {
-      logInfo("[EXIT]load file from " + tempSaveDir + " failed")
-      sc.stop()
-      return
+    var relt = LoadSectorInfo(nowDate, inputDir, tempSaveDir, sqlContext)
 
-    }
-
-    var nowTable:String = "NodeBSectorInfo_now"
+    var nowTable:String = "SectorInfo_now"
     relt = loadData2Table(nowTable,  outDir + "/dataTemp/d=" + nowDay  + "/now/*orc", sqlContext, sc)
-    if (-1 == relt) {
-      logInfo("[EXIT]load file from " + outDir + "/dataTemp/d=" + nowDay  + "/now/*orc" + " failed")
-      sc.stop()
-      return
-    }
-    else if ( "1" == firstFlag){
-      saveNodeBSectorInfo(nowDate, nowTable, "", saveDir, sqlContext)
-      data2Tib(saveDir, tidbTabelName, sqlContext)
-      sc.stop()
-      return
-    }
 
-    var lastTable:String = "NodeBSectorInfo_last"
-    relt = loadData2Table(lastTable, outDir + "/data/d="     + lastDay + "/*orc"    , sqlContext, sc)
-    if (-1 == relt && "1" != firstFlag ) {
-      logInfo("[EXIT]load file from " + outDir + "/data/d="     + lastDay + "/*orc" + " failed")
-      sc.stop()
-      return
+    if ( "1" == firstFlag){
+      saveSectorInfo(nowDate, nowTable, "", saveDir, sqlContext)
+      data2TiDb(saveDir, tidbTabelName, sqlContext)
+    }
+    else {
+      var lastTable:String = "SectorInfo_last"
+      relt = loadData2Table(lastTable, outDir + "/data/d="     + lastDay + "/*orc"    , sqlContext, sc)
+
+      saveSectorInfo(nowDate, nowTable, lastTable, saveDir, sqlContext)
+      data2TiDb(saveDir, tidbTabelName, sqlContext)
     }
 
-    saveNodeBSectorInfo(nowDate, nowTable, lastTable, saveDir, sqlContext)
-    data2Tib(saveDir, tidbTabelName, sqlContext)
-
-    sc.stop()
-    return
   }
 
   /**
-    *
+    *  删除文件
     * @param fileDir
     * @param sc
-    *   删除文件
     */
 
   def deleteDirFile(fileDir:String, sc:SparkContext): Unit = {
@@ -98,15 +79,14 @@ object BsSectionAnalysis extends Logging {
 
 
   /**
-    *
+    *      inputDir下指定日期dayStr的目录下获取扇区信息后保存到 tempSaveDir +  "/" +  dayStr下面
     * @param inputDir
     * @param tempSaveDir
     * @param dayStr
     * @param sqlContext
     * @return
-    *      指定日期dayStr的数据读到临时表，提取出扇区信息保存到  tempSaveDir +  "/" +  dayStr下面
     */
-  def tempNodeBSectorInfoByDay(inputDir:String, tempSaveDir:String, dayStr:String, sqlContext:SQLContext): Int= {
+  def LoadSectorInfoByDay(inputDir:String, tempSaveDir:String, dayStr:String, sqlContext:SQLContext): Int= {
 
     // hdfs://sparkhost:8020/user/iot_ete/data/cdr/transform/pgw/data/d=180716/h=02/m5=00/201807160222-1.orc
     val inputpath =  inputDir + "/d=" + dayStr + "/*"
@@ -119,6 +99,7 @@ object BsSectionAnalysis extends Logging {
     }catch{
       case e:Exception => {
         //e.printStackTrace()
+       // throw new Exception("inputpath: " +  inputpath + "  异常")
         println("inputpath: ", inputpath, "异常")
         return -1
       }
@@ -132,7 +113,7 @@ object BsSectionAnalysis extends Logging {
     //"/user/iot_ete/bs_sector/pgw/dataTemp/d=180716/180709"
     val outpath =  tempSaveDir + "/last/" + dayStr
     val outDF = sqlContext.sql("select  prov, t802, enbid, t806, max(l_timeoflastusage) as l_timeoflastusage from NodeBSectorInfoTmp group by  prov, t802, enbid, t806").repartition(1)
-    println("outpath: ", outpath, outDF.count())
+    println("outpath: ", outpath) //, outDF.count())
     //outDF.show()
     outDF.write.format("orc").mode(SaveMode.Overwrite).save(outpath)
     sqlContext.dropTempTable("NodeBSectorInfoTmp")
@@ -142,20 +123,19 @@ object BsSectionAnalysis extends Logging {
 
 
   /**
-    *
+    *        inputDir下日期now前面7天的数据中获取的扇区信息保存到  tempSaveDir  下面
     * @param now
     * @param inputDir
     * @param tempSaveDir
     * @param sqlContext
     * @return
-    *         now前面7天的数据中获取的扇区信息保存到  tempSaveDir  下面
     */
-  def tempNodeBSectorInfo(now: Date, inputDir:String, tempSaveDir:String, sqlContext: SQLContext): Int = {
+  def LoadSectorInfo(now: Date, inputDir:String, tempSaveDir:String, sqlContext: SQLContext): Int = {
 
     for( i <- 1 to 7){
       println( "Value of i: " + i )
       var dayStr:String = getDaysBefore(now, i)
-      var relt:Int = tempNodeBSectorInfoByDay(inputDir, tempSaveDir, dayStr, sqlContext)
+      var relt:Int = LoadSectorInfoByDay(inputDir, tempSaveDir, dayStr, sqlContext)
     }
 
     val inputpath =  tempSaveDir + "/last/*"
@@ -167,11 +147,12 @@ object BsSectionAnalysis extends Logging {
     }catch{
       case e:Exception => {
         //e.printStackTrace()
-        println("inputpath: ", inputpath, "异常")
+        throw new Exception("inputpath: " +  inputpath + "  异常")
+        //println("inputpath: ", inputpath, "异常")
         return -1
       }
     }
-    println("inputpath: ", inputpath, df.count())
+    println("inputpath: ", inputpath) //, df.count())
     //df.show()
     df.registerTempTable("NodeBSectorInfoTmp")
 
@@ -187,7 +168,7 @@ object BsSectionAnalysis extends Logging {
                 group by  prov, t802, enbid, t806
            ) t
       """).repartition(1) //.coalesce(1)
-    println("outpath: ", outpath, outDF.count())
+    println("outpath: ", outpath) //, outDF.count())
     //outDF.printSchema()
     //outDF.show()
     outDF.write.format("orc").mode(SaveMode.Overwrite).save(outpath)
@@ -199,15 +180,14 @@ object BsSectionAnalysis extends Logging {
   }
 
   /**
-    *
+    *    nowDay之前7天中到扇区信息和上次库中信息做比较后生成新的全量扇区信息
     * @param nowDay
     * @param now_table
     * @param before_table
     * @param saveDir
     * @param sqlContext
-    *    nowDay之前7天中到扇区信息和上次库中信息做比较后生成新的全量扇区信息
     */
-  def saveNodeBSectorInfo(nowDay:Date, now_table:String,  before_table:String, saveDir:String, sqlContext: SQLContext) = {
+  def saveSectorInfo(nowDay:Date, now_table:String,  before_table:String, saveDir:String, sqlContext: SQLContext) = {
 
     sqlContext.sql("show tables").show()
 
@@ -216,7 +196,8 @@ object BsSectionAnalysis extends Logging {
     println("today: " + today)
 
     var sqlStatement:String =  s"""
-       select  x.prov, x.tac, x.bsid, x.sectid, x.firtusetime, x.lastusetime, x.status
+       select  COALESCE(x.prov, '-1') as prov, COALESCE(x.tac, '') as tac, COALESCE(x.bsid, '') as bsid, COALESCE(x.sectid, '') as sectid,
+               x.firtusetime, x.lastusetime, x.status
        from (
           select COALESCE(n.prov, b.prov) as prov, COALESCE(n.tac, b.tac) as tac , COALESCE(n.bsid, b.bsid) as bsid, COALESCE(n.sectid, b.sectid) as sectid,
             case
@@ -236,13 +217,12 @@ object BsSectionAnalysis extends Logging {
              end as status
            from ${now_table}  n full outer join ${before_table}  b  on (n.prov = b.prov and n.tac = b.tac and n.bsid = b.bsid and n.sectid = b.sectid)
        ) x
-       where (x.prov is null or x.prov != 'provtest') and (x.tac is null or x.tac != 'tactest') and
-             (x.bsid is null or x.bsid != 'bsidtest') and (x.sectid is null or x.sectid != 'sectidtest')
       """
 
     if ("" == before_table){
       sqlStatement = s"""
-                       select n.prov, n.tac, n.bsid, n.sectid, n.firtusetime, n.lastusetime,
+                       select COALESCE(n.prov, '-1') as prov, COALESCE(n.tac, '') as tac, COALESCE(n.bsid, '') as bsid, COALESCE(n.sectid, '') as sectid,
+                              n.firtusetime, n.lastusetime,
                               case
                            		   when datediff(to_date( '${today}' ),to_date(n.lastusetime)) < 8  then 0
                                  when datediff(to_date( '${today}' ),to_date(n.lastusetime)) >= 8  and datediff(to_date( '${today}' ),to_date(n.lastusetime)) < 16 then 1
@@ -259,20 +239,19 @@ object BsSectionAnalysis extends Logging {
 
 
     //outDF.printSchema()
-    outDF.show()
+    //outDF.show()
     //"/user/iot_ete/bs_sector/pgw/data/d=180716/"
-    println("outpath: ", saveDir, outDF.count())
+    println("outpath: ", saveDir) //, outDF.count())
     outDF.write.format("orc").mode(SaveMode.Overwrite).save(saveDir)
   }
 
   /**
-    *
+    *         将路径inputpath下面orc文件装载到临时表tabelname中
     * @param tableName
     * @param inputpath
     * @param sqlContext
     * @param sc
     * @return
-    *         将路径inputpath下面orc文件装载到临时表tabelname中
     */
   def loadData2Table(tableName:String, inputpath:String, sqlContext:SQLContext , sc:SparkContext):Int = {
 
@@ -282,12 +261,13 @@ object BsSectionAnalysis extends Logging {
     }catch{
       case e:Exception => {
         //e.printStackTrace()
-        println("loadData2Table(" + tableName + "): " + inputpath, "异常")
+        throw new Exception("loadData2Table(" + tableName + "): " + inputpath + "  异常")
+       // println("loadData2Table(" + tableName + "): " + inputpath, "异常")
         //createEmptyTabe_T(tableName, sqlContext, sc)
         return -1
       }
     }
-    println("loadData2Table(" + tableName + "): " + inputpath,  df.count())
+    println("loadData2Table(" + tableName + "): " + inputpath) //,  df.count())
     df.registerTempTable(tableName)
     //df.printSchema()
     df.show()
@@ -295,33 +275,14 @@ object BsSectionAnalysis extends Logging {
   }
 
 
-  def createEmptyTabe_T(tabelName:String, sqlContext: SQLContext, sc:SparkContext) = {
-
-    val nameRDD = sc.makeRDD(Array(
-      "{\"prov\":\"provtest\"," +
-        "\"tac\":\"tactest\"," +
-        "\"bsid\":\"bsidtest\"," +
-        "\"sectid\":\"sectidtest\"," +
-        "\"firtusetime\":\"firtusetimetest\"," +
-        "\"lastusetime\":\"lastusetimetest\"," +
-        "\"status\":\"0\"" +
-        "}"
-    ))
-    val nameDF = sqlContext.read.json(nameRDD)
-    nameDF.registerTempTable(tabelName)
-    nameDF.printSchema()
-    nameDF.show()
-  }
-
   /**
-    *
+    *         将saveDir下的扇区信息upsert方式入到tidb的表tabelName中
     * @param saveDir
     * @param tabelName
     * @param sqlContext
     * @return
-    *         将saveDir下的扇区信息upsert方式入到tib的表tabelName中
     */
-  def data2Tib(saveDir:String, tabelName:String, sqlContext: SQLContext) : Int = {
+  def data2TiDb(saveDir:String, tabelName:String, sqlContext: SQLContext) : Int = {
 
     var df:DataFrame = null
     try{
@@ -330,32 +291,14 @@ object BsSectionAnalysis extends Logging {
     }catch{
       case e:Exception => {
         //e.printStackTrace()
-        println("inputpath( data2Tib ->" + tabelName  + "): "+  saveDir + "/*orc", "异常")
+        throw new Exception("inputpath( data2Tib ->" + tabelName  + "): "+  saveDir + "/*orc" + "  异常")
+        //println("inputpath( data2Tib ->" + tabelName  + "): "+  saveDir + "/*orc", "异常")
         return -1
       }
     }
     println("inputpath( data2Tib ->" + tabelName  + "): "+  saveDir + "/*orc")
 
-    df.registerTempTable("data2Tib")
-
-    val result = sqlContext.sql("""
-           select case when prov is null then '-1'
-                       else prov
-                  end as prov,
-                  case when tac is null then ''
-                       else tac
-                  end as tac,
-                  case when bsid is null then ''
-                       else bsid
-                  end as bsid,
-                  case when sectid is null then ''
-                      else sectid
-                  end as sectid,
-                  firtusetime, lastusetime, status
-           from data2Tib
-     """ ).map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4), x.getString(5), x.getInt(6))).collect()
-
-    //val result =df.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4), x.getString(5), x.getInt(6))).collect()
+    val result =df.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4), x.getString(5), x.getInt(6))).collect()
     var dbConn = DBUtils.getConnection
     dbConn.setAutoCommit(false)
     val sql =   "insert into " + tabelName +
@@ -407,11 +350,10 @@ object BsSectionAnalysis extends Logging {
 
 
   /**
-    *
+    *         获取日期now前interval天日期，返回到的是格式为"yyMMdd"的字符串
     * @param now
     * @param interval
     * @return
-    *         获取日期now前interval天日期，返回到的是格式为"yyMMdd"的字符串
     */
   def getDaysBefore(now: Date, interval: Int):String = {
     val dateFormat: SimpleDateFormat = new SimpleDateFormat("yyMMdd")

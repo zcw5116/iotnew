@@ -1,10 +1,12 @@
 package com.zyuc.stat.nbiot.analysis.realtime.utils
 import com.zyuc.stat.utils.FileUtils
+import org.apache.calcite.avatica.ColumnMetaData.StructType
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{SQLContext, SaveMode}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
-
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.{LongType, StringType}
 /**
   * Created by liuzk on 18-5-25.
   */
@@ -43,6 +45,7 @@ object mergeLitterFile {
       // 将需要合并的文件mv到临时目录
       FileUtils.moveFiles(fileSystem, batchTime, srcDataPath, mergeSrcPath, true)
       val srcDF = sqlContext.read.format("orc").load(mergeSrcPath + "/")
+        //.select(col("dynamicaddressflagext").cast("long"))
 
       // 将合并目录的src子目录下的文件合并后保存到合并目录的data子目录下
       srcDF.coalesce(partitionNum).write.format("orc").mode(SaveMode.Overwrite).save(mergeDataPath)

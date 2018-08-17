@@ -31,8 +31,9 @@ object NbProvSession {
     val jdbcUser = "epcslview"
     val jdbcPassword = "epc_slview129"
 
+    //sqlContext.read.format("orc").load(inputPath + partitionPath)
     sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("mdn","chargingid","prov","T100").registerTempTable("ProvSessiobTable")
+      .selectExpr("mdn","cast(chargingid as string) chargingid","prov","T100").registerTempTable("ProvSessiobTable")
     val sql =
       s"""
          |select 'NB_话单用户会话数量' as DATATYPE, '${statime}' as STA_TIME,
@@ -46,12 +47,13 @@ object NbProvSession {
     insertByJDBC()
 
     def insertByJDBC() = {
-      /*val deleteSQL = s"delete from iotprodusernum where STA_TIME = '${dd}'"
+      val deleteSQL = s"delete from iotprodusernum where DATATYPE='NB_话单用户会话数量' and STA_TIME = to_date('${dataTime}','yyyymmdd')"
       var conn = DriverManager.getConnection(jdbcUrl, jdbcUser, jdbcPassword)
       var psmtdel: PreparedStatement = null
       psmtdel = conn.prepareStatement(deleteSQL)
       psmtdel.executeUpdate()
-      psmtdel.close()*/
+      conn.commit()
+      psmtdel.close()
 
       val insertSQL = "insert into iotprodusernum(DATATYPE,STA_TIME,PRODTYPE,USERNUM) values (?,?,?,?)"
 

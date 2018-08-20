@@ -45,7 +45,7 @@ object CDRConverterUtils extends Logging{
       }
       else if(authLogType==LOG_TYPE_PGW){
         newDF = df.selectExpr("IMSI  as  imsi", "MDN  as  mdn", "T0  as  recordtype", "T1  as  servedimsi",
-          "T10  as  p_gwplmnidentifier", "T11  as  accesspointnameni", "T12  as  pdppdntype",
+          "T10  as  p_gwplmnidentifier", "T100", "T11  as  accesspointnameni", "T12  as  pdppdntype",
           "T13  as  servedpdppdnaddress", "T14  as  servedpdppdnaddressext", "T15  as  dynamicaddressflag",
           "T16  as  dynamicaddressflagext", "T18  as  mstimezone", "T19  as  duration",
           "T2  as  imsiunauthenticatedflag", "T20  as  causeforrecclosing", "T21  as  diagnostics",
@@ -69,7 +69,88 @@ object CDRConverterUtils extends Logging{
           "substr(regexp_replace(T46,'-',''),3,6) as d", "substr(T46,12,2) as h",
           "lpad(floor(substr(T46,15,2)/5)*5,2,'0') as m5")
 
-        newDF = newDF.filter(newDF("l_timeoflastusage").isNotNull)
+        /*  循环列转变
+        val colNames = newDF.columns
+
+        var df1 = newDF
+        for (colName <- colNames) {
+          df1 = df1.withColumn(colName, col(colName).cast(StringType))
+        }*/
+
+        val resultDF = newDF.select(newDF("imsi").cast("string"),
+          newDF("mdn").cast("string"),
+          newDF("recordtype").cast("string"),
+          newDF("servedimsi").cast("string"),
+          newDF("p_gwplmnidentifier").cast("string"),
+          newDF("T100").cast("string"),
+          newDF("accesspointnameni").cast("string"),
+          newDF("pdppdntype").cast("string"),
+          newDF("servedpdppdnaddress").cast("string"),
+          newDF("servedpdppdnaddressext").cast("string"),
+          newDF("dynamicaddressflag").cast("string"),
+          newDF("dynamicaddressflagext").cast("string"),
+          newDF("mstimezone").cast("string"),
+          newDF("duration").cast("string"),
+          newDF("imsiunauthenticatedflag"),
+          newDF("causeforrecclosing").cast("string"),
+          newDF("diagnostics").cast("string"),
+          newDF("recordsequencenumber").cast("string"),
+          newDF("nodeid").cast("string"),
+          newDF("recordextensions").cast("string"),
+          newDF("localsequencenumber").cast("string"),
+          newDF("apnselectionmode").cast("string"),
+          newDF("servedmsisdn").cast("string"),
+          newDF("userlocationinformation").cast("string"),
+          newDF("usercsginformation").cast("string"),
+          newDF("servedimeisv").cast("string"),
+          newDF("threegpp2userlocationinformation").cast("string"),
+          newDF("chargingcharacteristics").cast("string"),
+          newDF("chchselectionmode").cast("string"),
+          newDF("imssignalingcontext").cast("string"),
+          newDF("servingnodeplmnidentifier").cast("string"),
+          newDF("rattype").cast("string"),
+          newDF("psfurnishcharginginformation").cast("string"),
+          newDF("starttime").cast("string"),
+          newDF("stoptime").cast("string"),
+          newDF("camelcharginginformation").cast("string"),
+          newDF("served3gpp2meid").cast("string"),
+          newDF("externalchargingid").cast("string"),
+          newDF("servedmnnai").cast("string"),
+          newDF("l_ratinggroup").cast("string"),
+          newDF("l_chargingrulebasename").cast("string"),
+          newDF("l_localsequencenumber").cast("string"),
+          newDF("l_timeoffirstusage").cast("string"),
+          newDF("l_timeoflastusage").cast("string"),
+          newDF("l_timeusage").cast("string"),
+          newDF("l_serviceconditionchange").cast("string"),
+          newDF("l_qosinformationneg").cast("string"),
+          newDF("p_gwaddress").cast("string"),
+          newDF("l_datavolumefbcuplink").cast("string"),
+          newDF("l_datavolumefbcdownlink").cast("string"),
+          newDF("l_timeofreport").cast("string"),
+          newDF("sc_qosnegotiated").cast("string"),
+          newDF("sc_datavolumegprsuplink").cast("string"),
+          newDF("sc_datavolumegprsdownlink").cast("string"),
+          newDF("sc_changecondition").cast("string"),
+          newDF("sc_changetime").cast("string"),
+          newDF("chargingid").cast("string"),
+          newDF("pdnconnectionid").cast("string"),
+          newDF("servingnodeaddress").cast("string"),
+          newDF("prov").cast("string"),
+          newDF("city").cast("string"),
+          newDF("t802").cast("string"),
+          newDF("enbid").cast("string"),
+          newDF("t805").cast("string"),
+          newDF("t806").cast("string"),
+          newDF("t807").cast("string"),
+          newDF("t809").cast("string"),
+          newDF("servingnodetype").cast("string"),
+          newDF("bsid").cast("string"),
+          newDF("d").cast("string"),
+          newDF("h").cast("string"),
+          newDF("m5").cast("string"))
+
+        newDF = resultDF.filter(resultDF("l_timeoflastusage").isNotNull)
       }
       else if(authLogType==LOG_TYPE_HACCG){
         newDF = df.selectExpr("MDN  as  mdn_2","T0  as  streamnumber","T1  as  acct_status_type",

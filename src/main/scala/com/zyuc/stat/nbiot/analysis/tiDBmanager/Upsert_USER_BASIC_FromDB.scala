@@ -2,7 +2,7 @@ package com.zyuc.stat.nbiot.analysis.tiDBmanager
 
 import java.sql.PreparedStatement
 
-import com.zyuc.iot.utils.DbUtils
+import com.zyuc.iot.utils.{DbUtils, DbUtils_OnlineTiDB}
 import com.zyuc.stat.nbiot.etl.CRMETL2.struct
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -53,13 +53,13 @@ object Upsert_USER_BASIC_FromDB {
     val insertResult = sqlContext.read.format("orc").load(outputPath + fulltable).filter("yestmdn is null").collect()
     val insertSql =
       s"""
-         |insert into IOT_USER_BASIC_STATIC
+         |insert into IOT_USER_BASIC_STATIC_20180730
          |(MDN,ProductID,CUST_ID,CUST_BELO_ENTE,BELO_CITY_COMP,BELO_PROV_COMP,IND_TYPE,IND_DET_TYPE,PROD_TYPE,ActiveTime,CmpTime,STAT,IMSI_3G,IMSI_4G,ICCID,IF_VPDN,IF_DRTSERV,IF_2G,IF_3G,IF_4G,IF_FLUX,IF_RegLimit,IF_VPDN_CN2,IF_MCB,RegLimitProv,IF_Rcv_SM,IF_Send_SM,IF_P2P_SM,DRTIP,Domain,APN,IF_VPDNAAA,md5,datatime)
          |values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
          |on duplicate key update ProductID=?,CUST_ID=?,CUST_BELO_ENTE=?,BELO_CITY_COMP=?,BELO_PROV_COMP=?,IND_TYPE=?,IND_DET_TYPE=?,PROD_TYPE=?,ActiveTime=?,CmpTime=?,STAT=?,IMSI_3G=?,IMSI_4G=?,ICCID=?,IF_VPDN=?,IF_DRTSERV=?,IF_2G=?,IF_3G=?,IF_4G=?,IF_FLUX=?,IF_RegLimit=?,IF_VPDN_CN2=?,IF_MCB=?,RegLimitProv=?,IF_Rcv_SM=?,IF_Send_SM=?,IF_P2P_SM=?,DRTIP=?,Domain=?,APN=?,IF_VPDNAAA=?,md5=?,datatime=?
        """.stripMargin
 
-    var dbConn = DbUtils.getDBConnection
+    var dbConn = DbUtils_OnlineTiDB.getDBConnection
     dbConn.setAutoCommit(false)
     val pstmt = dbConn.prepareStatement(insertSql)
     var num = 0

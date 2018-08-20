@@ -110,7 +110,7 @@ object NbCdrM5Analysis {
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
       map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3),
-        x.getString(4), x.getString(5), x.getLong(6), x.getString(7))).collect()
+        x.getString(4), x.getString(5), x.getDouble(6), x.getString(7))).collect()
 
     var i = 0
     for(r<-result){

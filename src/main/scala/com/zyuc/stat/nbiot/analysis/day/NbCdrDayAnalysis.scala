@@ -184,8 +184,8 @@ object NbCdrDayAnalysis {
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputResult).
       map(x=>(x.getString(0), x.getString(1), x.getString(2),x.getString(3),x.getString(4),
-        x.getString(5), x.getString(6),x.getString(7), x.getLong(8), x.getInt(9))).collect()
-
+        x.getString(5), x.getString(6),x.getString(7), x.getDouble(8), x.getInt(9))).collect()
+    //x.getLong(8)  -> x.getDouble(8)
     var i = 0
     for(r<-result){
       val summ_cycle = r._1
@@ -207,7 +207,8 @@ object NbCdrDayAnalysis {
       pstmt.setString(6, dim_type)
       pstmt.setString(7, dim_obj)
       pstmt.setString(8, meas_obj)
-      pstmt.setLong(9, meas_value)
+      pstmt.setLong(9, meas_value.toLong)
+      //pstmt.setLong(9, meas_value)
       pstmt.setInt(10, meas_rank)
 
       i += 1

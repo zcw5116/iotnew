@@ -1,19 +1,25 @@
 package com.zyuc.stat.iot.analysis.common
 
-import com.zyuc.stat.utils.DBUtils
+//import com.zyuc.stat.utils.DBUtils
+import com.zyuc.iot.utils
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
+import com.zyuc.iot.utils.DbUtils
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.spark.{Logging, SparkConf, SparkContext}
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.functions.lit
+
+import scala.collection.mutable.ArrayBuffer
+
 /**
   * Created by hadoop on 18-7-24.
   */
 object BsSectionAnalysis extends Logging {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("test")
+    val sparkConf = new SparkConf()//.setMaster("local[*]").setAppName("test")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -34,26 +40,30 @@ object BsSectionAnalysis extends Logging {
     val tidbTabelName:String =  sc.getConf.get("spark.app.tidbtable", "iot_bs_sector_pgw")
     val inDir = sc.getConf.get("spark.app.indir", "/user/iot_ete/data/cdr/transform/pgw")
     val outDir = sc.getConf.get("spark.app.outdir", "/user/iot_ete/bs_sector/pgw")
+    val localDirCSV = sc.getConf.get("spark.app.csvdir", "/slview/nms/data/iot/ltesector/pgw")
+
     var inputDir: String = inDir + "/data"  // "/user/iot_ete/data/cdr/transform/pgw/data"
     var tempSaveDir: String = outDir + "/dataTemp/d=" + nowDay // "/user/iot_ete/bs_sector/pgw/dataTemp/"
     var saveDir:String = outDir + "/data/d=" + nowDay
+    var csvDir:String = outDir + "/datacsv"
+    deleteDirFile(outDir + "/dataTemp/", sc)
+    deleteDirFile(csvDir, sc)
 
-    deleteDirFile(outDir + "/dataTemp/" ,sc)
-
-    var relt = LoadSectorInfo(nowDate, inputDir, tempSaveDir, sqlContext)
+    var relt:Int = 0
+    relt = LoadSectorInfo(nowDate, inputDir, tempSaveDir, sqlContext)
 
     var nowTable:String = "SectorInfo_now"
     relt = loadData2Table(nowTable,  outDir + "/dataTemp/d=" + nowDay  + "/now/*orc", sqlContext, sc)
 
     if ( "1" == firstFlag){
-      saveSectorInfo(nowDate, nowTable, "", saveDir, sqlContext)
+      saveSectorInfo(nowDate, nowTable, "", saveDir, csvDir, localDirCSV, sqlContext, sc)
       data2TiDb(saveDir, tidbTabelName, sqlContext)
     }
     else {
       var lastTable:String = "SectorInfo_last"
       relt = loadData2Table(lastTable, outDir + "/data/d="     + lastDay + "/*orc"    , sqlContext, sc)
 
-      saveSectorInfo(nowDate, nowTable, lastTable, saveDir, sqlContext)
+      saveSectorInfo(nowDate, nowTable, lastTable, saveDir, csvDir, localDirCSV, sqlContext, sc)
       data2TiDb(saveDir, tidbTabelName, sqlContext)
     }
 
@@ -89,7 +99,7 @@ object BsSectionAnalysis extends Logging {
   def LoadSectorInfoByDay(inputDir:String, tempSaveDir:String, dayStr:String, sqlContext:SQLContext): Int= {
 
     // hdfs://sparkhost:8020/user/iot_ete/data/cdr/transform/pgw/data/d=180716/h=02/m5=00/201807160222-1.orc
-    val inputpath =  inputDir + "/d=" + dayStr + "/*"
+    val inputpath =  inputDir + "/d=" + dayStr + "/h=*" + "/m5=*"
 
 
     var df:DataFrame = null
@@ -110,7 +120,7 @@ object BsSectionAnalysis extends Logging {
     //df.show()
     df.registerTempTable("NodeBSectorInfoTmp")
 
-    //"/user/iot_ete/bs_sector/pgw/dataTemp/d=180716/180709"
+    //"/user/iot_ete/bs_sector/pgw/dataTemp/last/d=180716/180709"
     val outpath =  tempSaveDir + "/last/" + dayStr
     val outDF = sqlContext.sql("select  prov, t802, enbid, t806, max(l_timeoflastusage) as l_timeoflastusage from NodeBSectorInfoTmp group by  prov, t802, enbid, t806").repartition(1)
     println("outpath: ", outpath) //, outDF.count())
@@ -135,6 +145,9 @@ object BsSectionAnalysis extends Logging {
     for( i <- 1 to 7){
       println( "Value of i: " + i )
       var dayStr:String = getDaysBefore(now, i)
+
+      // exists orc   var filelist = listFiles(csvDir  + "/provorc", sc)
+
       var relt:Int = LoadSectorInfoByDay(inputDir, tempSaveDir, dayStr, sqlContext)
     }
 
@@ -161,9 +174,9 @@ object BsSectionAnalysis extends Logging {
     val outpath:String =  tempSaveDir + "/now"
     val outDF = sqlContext.sql(
       """
-         select t.prov, t.tac, t.bsid, t.sectid, t.firtusetime,  t.firtusetime as lastusetime, 0 as status
+         select t.prov, t.tac, t.bsid, t.sectid, t.firstusetime,  t.firstusetime as lastusetime, 0 as status
          from (
-                select  prov , t802 as tac , enbid as bsid, t806 as sectid, max(l_timeoflastusage) as firtusetime
+                select  prov , t802 as tac , enbid as bsid, t806 as sectid, max(l_timeoflastusage) as firstusetime
                 from NodeBSectorInfoTmp
                 group by  prov, t802, enbid, t806
            ) t
@@ -179,17 +192,19 @@ object BsSectionAnalysis extends Logging {
     return 0
   }
 
+
   /**
     *    nowDay之前7天中到扇区信息和上次库中信息做比较后生成新的全量扇区信息
+    *
     * @param nowDay
     * @param now_table
     * @param before_table
     * @param saveDir
     * @param sqlContext
     */
-  def saveSectorInfo(nowDay:Date, now_table:String,  before_table:String, saveDir:String, sqlContext: SQLContext) = {
+  def saveSectorInfo(nowDay:Date, now_table:String,  before_table:String, saveDir:String, csvDir:String, localDirCSV:String, sqlContext: SQLContext, sc:SparkContext) = {
 
-    sqlContext.sql("show tables").show()
+    //sqlContext.sql("show tables").show()
 
     val dateSDF = new SimpleDateFormat("yyyy-MM-dd")
     val today =  dateSDF.format( nowDay.getTime )
@@ -197,14 +212,14 @@ object BsSectionAnalysis extends Logging {
 
     var sqlStatement:String =  s"""
        select  COALESCE(x.prov, '-1') as prov, COALESCE(x.tac, '') as tac, COALESCE(x.bsid, '') as bsid, COALESCE(x.sectid, '') as sectid,
-               x.firtusetime, x.lastusetime, x.status
+               x.firstusetime, x.lastusetime, x.status
        from (
           select COALESCE(n.prov, b.prov) as prov, COALESCE(n.tac, b.tac) as tac , COALESCE(n.bsid, b.bsid) as bsid, COALESCE(n.sectid, b.sectid) as sectid,
             case
-               when n.firtusetime is null then b.firtusetime
-               when b.firtusetime is null or b.status = 6  then n.firtusetime
-               else  b.firtusetime
-            end as firtusetime,
+               when n.firstusetime is null then b.firstusetime
+               when b.firstusetime is null or b.status = 6  then n.firstusetime
+               else  b.firstusetime
+            end as firstusetime,
             COALESCE(n.lastusetime, b.lastusetime) as lastusetime ,
             case
               when datediff(to_date( '${today}' ),to_date(COALESCE(n.lastusetime, b.lastusetime))) < 8  then 0
@@ -222,7 +237,7 @@ object BsSectionAnalysis extends Logging {
     if ("" == before_table){
       sqlStatement = s"""
                        select COALESCE(n.prov, '-1') as prov, COALESCE(n.tac, '') as tac, COALESCE(n.bsid, '') as bsid, COALESCE(n.sectid, '') as sectid,
-                              n.firtusetime, n.lastusetime,
+                              n.firstusetime, n.lastusetime,
                               case
                            		   when datediff(to_date( '${today}' ),to_date(n.lastusetime)) < 8  then 0
                                  when datediff(to_date( '${today}' ),to_date(n.lastusetime)) >= 8  and datediff(to_date( '${today}' ),to_date(n.lastusetime)) < 16 then 1
@@ -235,14 +250,69 @@ object BsSectionAnalysis extends Logging {
                    from ${now_table}  n """
     }
 
-    val outDF = sqlContext.sql( sqlStatement ).repartition(1)//.coalesce(1)
+    val outDF = sqlContext.sql( sqlStatement ).dropDuplicates(Seq("prov","tac","bsid","sectid")).repartition(1)//.coalesce(1)
 
 
     //outDF.printSchema()
     //outDF.show()
     //"/user/iot_ete/bs_sector/pgw/data/d=180716/"
-    println("outpath: ", saveDir) //, outDF.count())
+    println("outpath: ", saveDir)//, outDF.count())
     outDF.write.format("orc").mode(SaveMode.Overwrite).save(saveDir)
+
+    //outDF.rdd.saveAsTextFile("csvDir")
+    println("outpath: ", csvDir)
+    outDF.selectExpr("concat_ws(',',prov,tac,bsid,sectid,firstusetime,lastusetime,status)").write.format("text").mode("overwrite").save(csvDir  + "/allcsv")
+    copyfile2Local(csvDir  + "/allcsv",  s"${localDirCSV}/LTESECTOR_全国.utf8", sc)
+
+
+    outDF.selectExpr("prov", "concat_ws(',',prov,tac,bsid,sectid,firstusetime,lastusetime,status)").repartition(1).write.format("text").partitionBy("prov").mode("overwrite").save(csvDir  + "/provcsv")
+
+    var filelist = listFiles(csvDir  + "/provcsv", sc)
+
+    for(i <- 0 until filelist.length){
+
+      var tempArr = filelist(i).split("=")
+
+      if ( 2 == tempArr.length ){
+        var provName = tempArr(1)
+        println( filelist(i) + ": " +  provName)
+
+        copyfile2Local(s"${csvDir}/provcsv/prov=${provName}",  s"${localDirCSV}/LTESECTOR_${provName}.utf8", sc)
+      }
+
+    }
+
+
+
+    /*
+    println("outpath: ", csvDir)
+    outDF.write.format("com.databricks.spark.csv").options(Map("header" -> "true")).mode("overwrite").save( csvDir  + "/allcsv" )
+    copyfile2Local(csvDir  + "/allcsv",  s"${localDirCSV}/LTESECTOR_全国.utf8", sc)
+
+    outDF.write.partitionBy("prov").format("orc").mode("overwrite").save(csvDir  + "/provorc")
+
+    var filelist = listFiles(csvDir  + "/provorc", sc)
+
+    for(i <- 0 until filelist.length){
+
+      var tempArr = filelist(i).split("=")
+
+      if ( 2 == tempArr.length ){
+        var provName = tempArr(1)
+        println( filelist(i) + ": " +  provName)
+        //var provdf =  sqlContext.read.format("orc").load( s"${csvDir}/provorc/prov=${provName}" ).withColumn("prov", lit(provName))
+        var df =  sqlContext.read.format("orc").load( s"${csvDir}/provorc/prov=${provName}" )
+        df.registerTempTable("tabelbyprov")
+        var provdf = sqlContext.sql(s" select '${provName}' as prov, t.* from  tabelbyprov t")
+       // provdf.show()
+        provdf.repartition(1).write.format("com.databricks.spark.csv").options(Map("header" -> "true")).mode("overwrite").save( s"${csvDir}/provcsv/${provName}")
+
+        copyfile2Local(s"${csvDir}/provcsv/${provName}",  s"${localDirCSV}/LTESECTOR_${provName}.utf8", sc)
+      }
+
+    }
+*/
+    println("filelist")
   }
 
   /**
@@ -270,7 +340,7 @@ object BsSectionAnalysis extends Logging {
     println("loadData2Table(" + tableName + "): " + inputpath) //,  df.count())
     df.registerTempTable(tableName)
     //df.printSchema()
-    df.show()
+    //df.show()
     return 0
   }
 
@@ -284,6 +354,7 @@ object BsSectionAnalysis extends Logging {
     */
   def data2TiDb(saveDir:String, tabelName:String, sqlContext: SQLContext) : Int = {
 
+
     var df:DataFrame = null
     try{
       df = sqlContext.read.format("orc").load(saveDir + "/*orc")
@@ -296,27 +367,33 @@ object BsSectionAnalysis extends Logging {
         return -1
       }
     }
-    println("inputpath( data2Tib ->" + tabelName  + "): "+  saveDir + "/*orc")
+    println("( data2Tib ->" + tabelName  + "): inputpath"+  saveDir + "/*orc")
 
+    //df.printSchema()
+    //df.show()
     val result =df.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4), x.getString(5), x.getInt(6))).collect()
-    var dbConn = DBUtils.getConnection
+    println("df.map success")
+
+    var dbConn = DbUtils.getDBConnByName("tidb")
     dbConn.setAutoCommit(false)
     val sql =   "insert into " + tabelName +
-      """ (prov,  tac,  bsid, sectid, firtusetime, lastusetime, status)
+      """ (prov,  tac,  bsid, sectid, firstusetime, lastusetime, status)
                    values (?, ?, ?, ?, ?, ?, ?)
-                   on duplicate key update firtusetime=?, lastusetime=?, status=?
+                   on duplicate key update firstusetime=?, lastusetime=?, status=?
               """
 
     val pstmt = dbConn.prepareStatement(sql)
 
     var i = 0
     for(r<-result){
+      //println("num " + i)
+
       var prov = r._1
       var tac = r._2
       var bsid = r._3
       var sectid = r._4
 
-      val firtusetime = r._5
+      val firstusetime = r._5
       val lastusetime = r._6
       val status = r._7
 
@@ -324,11 +401,11 @@ object BsSectionAnalysis extends Logging {
       pstmt.setString(2, tac)
       pstmt.setString(3, bsid)
       pstmt.setString(4, sectid)
-      pstmt.setString(5, firtusetime)
+      pstmt.setString(5, firstusetime)
       pstmt.setString(6, lastusetime)
       pstmt.setInt(7, status)
 
-      pstmt.setString(8, firtusetime)
+      pstmt.setString(8, firstusetime)
       pstmt.setString(9, lastusetime)
       pstmt.setInt(10, status)
 
@@ -345,6 +422,9 @@ object BsSectionAnalysis extends Logging {
     dbConn.commit()
     pstmt.close()
     dbConn.close()
+
+    println("( data2Tib ->" + tabelName  + ") end" )
+
     i
   }
 
@@ -364,5 +444,59 @@ object BsSectionAnalysis extends Logging {
     cal.add(Calendar.DATE, - interval)
     val beforeday = dateFormat.format(cal.getTime())
     beforeday
+  }
+
+  /**
+    * 获取 dirName 下面的文件列表
+    * @param dirName
+    * @param sc
+    * @return
+    */
+
+  def listFiles(dirName:String, sc:SparkContext): Array[String] = {
+
+    val hdfs = FileSystem.get(sc.hadoopConfiguration)
+
+    var f = new Path(dirName)
+
+    var fileArr = new ArrayBuffer[String]
+
+    if ( hdfs.exists(f)) {
+      var status = hdfs.listStatus(f)
+      var i = 0
+      for (i <- 0 until status.length ) {
+        fileArr += status(i).getPath().toString()
+        //println(status(i).getPath().toString(), status(i).isDirectory())
+      }
+    }
+    else {
+      println("not exists path " + dirName)
+    }
+
+    fileArr.toArray
+  }
+
+  /**
+    * hadoop 上文件src  拷贝到 本地 dest
+    * @param src
+    * @param dest
+    * @param sc
+    */
+
+  def copyfile2Local(src:String, dest:String, sc:SparkContext): Unit ={
+    val hdfs = FileSystem.get(sc.hadoopConfiguration)
+
+    var filelist = listFiles(src, sc)
+    for(i <- 0 until filelist.length){
+      var prov_match = "_SUCCESS".r
+      var matchrelt = prov_match.findFirstIn(filelist(i ))
+      if( matchrelt.isEmpty) {
+
+        var srcpath = new Path(filelist(i ))
+        var destpath = new Path(dest)
+        hdfs.copyToLocalFile(srcpath, destpath)
+        println(s"copy hdfs ${srcpath} to local ${destpath}")
+      }
+    }
   }
 }

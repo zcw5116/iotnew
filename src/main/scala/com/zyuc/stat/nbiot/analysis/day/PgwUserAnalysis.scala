@@ -27,7 +27,7 @@ object PgwUserAnalysis {
 
 
     val inputData = inputPath + "d=" + userDataDayid
-    val pgwUserDF = sqlContext.read.format("orc").load(inputData).filter("isnb='0'")
+    val pgwUserDF = sqlContext.read.format("orc").load(inputData).filter("is4g='Y'")
     val pgwTable = "spark_nb"
     pgwUserDF.registerTempTable(pgwTable)
     val statDF = sqlContext.sql(
@@ -64,11 +64,11 @@ object PgwUserAnalysis {
          |delete from iot_ana_4g_data_summ_d where summ_cycle=? and meas_obj=?
        """.stripMargin
     var pstmt: PreparedStatement = null
-/*    pstmt = dbConn.prepareStatement(deleteSQL)
+    pstmt = dbConn.prepareStatement(deleteSQL)
     pstmt.setString(1, dayid)
     pstmt.setString(2, "CRTUSERS")
     pstmt.executeUpdate()
-    pstmt.close()*/
+    pstmt.close()
 
     // 执行insert操作
     dbConn.setAutoCommit(false)

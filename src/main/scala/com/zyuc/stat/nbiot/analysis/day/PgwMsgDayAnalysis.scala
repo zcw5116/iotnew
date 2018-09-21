@@ -34,7 +34,7 @@ object PgwMsgDayAnalysis {
     pgwM5DF.registerTempTable(pgwM5Table)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_user"

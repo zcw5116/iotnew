@@ -40,7 +40,7 @@ object PgwCdrM5Analysis {
     // 过滤NB的用户，将用户的数据广播出去，如果用户的数据过大， 需要修改参数spark.sql.autoBroadcastJoinThreshold，
     // 具体根据spark web ui的DGA执行计划调整, spark.sql.autoBroadcastJoinThreshold值默认为10M
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_user"

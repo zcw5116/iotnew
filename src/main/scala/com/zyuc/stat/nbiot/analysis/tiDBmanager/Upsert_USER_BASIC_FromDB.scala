@@ -22,35 +22,36 @@ object Upsert_USER_BASIC_FromDB {
     val lastday = sc.getConf.get("spark.app.lastday","20180730")
     val inputPath = sc.getConf.get("spark.app.inputpath", "/user/iot/data/metadata/CRM")
     val outputPath = sc.getConf.get("spark.app.outputpath", "/user/iot/data/CRM/data/")
+    val threadNum = sc.getConf.get("spark.app.threadNum", "2").toInt
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)//20180723
     val yestarday = lastday.toInt
     val yestardayTable= "yestardayTable"
-    hiveContext.read.format("orc").load(outputPath + yestarday).registerTempTable(yestardayTable)
+    hiveContext.read.format("parquet").load(outputPath + yestarday).registerTempTable(yestardayTable)
 
     val inputfiles = inputPath + "/JiTuanWangYun-DuanDaoDuanBaoZhangXiTong_" + dataTime + ".txt"
-    val rdd = sc.textFile(inputfiles).map(x => x.split("\t", 34)) //.filter(_.length==28)
+    val rdd = sc.textFile(inputfiles).map(x => x.split("\t", 34)).filter(_.length !=1)
       .map(x => Row(x(0), x(1), x(2), x(3), x(4), x(5), x(6), x(7), x(8), x(9),
       x(10), x(11), x(12), x(13), x(14), x(15), x(16), x(17), x(18), x(19),
       x(20), x(21), x(22), x(23), x(24), x(25), x(26), x(27), x(28), x(29), x(30), x(31), x(32), x(33)))
     val df = hiveContext.createDataFrame(rdd, struct)
 
     df.filter("STAT!='拆机'").repartition(90)
-      .selectExpr("USERKEY", "concat('86',MDN)", "ProductID", "CUST_ID", "CUST_BELO_ENTE",
-        "substr(BELO_CITY_COMP,0,length(BELO_CITY_COMP)-2)", "BELO_PROV_COMP", "IND_TYPE",
+      .selectExpr("USERKEY", "concat('86',MDN) as MDN", "ProductID", "CUST_ID", "CUST_BELO_ENTE",
+        "substr(BELO_CITY_COMP,0,length(BELO_CITY_COMP)-2) as BELO_CITY_COMP", "BELO_PROV_COMP", "IND_TYPE",
         "IND_DET_TYPE", "PROD_TYPE", "ActiveTime", "CmpTime", "STAT", "IMSI_3G", "IMSI_4G",
         "ICCID", "IF_VPDN", "IF_DRTSERV", "IF_2G", "IF_3G", "IF_4G", "IF_FLUX",
         "IF_RegLimit", "IF_VPDN_CN2", "IF_MCB", "RegLimitProv", "IF_Rcv_SM", "IF_Send_SM", "IF_P2P_SM",
         "DRTIP", "Domain", "APN", "IF_VPDNAAA", "IF_NB",
-        "md5(concat(ProductID, CUST_ID, CUST_BELO_ENTE, BELO_CITY_COMP, BELO_PROV_COMP, IND_TYPE, IND_DET_TYPE, PROD_TYPE, ActiveTime, CmpTime, STAT, IMSI_3G, IMSI_4G, ICCID, IF_VPDN, IF_DRTSERV, IF_2G, IF_3G, IF_4G, IF_FLUX, IF_RegLimit, IF_VPDN_CN2, IF_MCB, RegLimitProv, IF_Rcv_SM, IF_Send_SM, IF_P2P_SM, DRTIP, Domain, APN, IF_VPDNAAA, IF_NB)) as md5")
-      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + dataTime)
+        "md5(concat(ProductID, CUST_ID, CUST_BELO_ENTE, BELO_CITY_COMP, BELO_PROV_COMP, IND_TYPE, IND_DET_TYPE, PROD_TYPE, ActiveTime, CmpTime, STAT, IMSI_3G, IMSI_4G, ICCID, IF_VPDN, IF_DRTSERV, IF_2G, IF_3G, IF_4G, IF_FLUX, IF_RegLimit, IF_VPDN_CN2, IF_MCB, RegLimitProv, IF_Rcv_SM, IF_Send_SM, IF_P2P_SM, DRTIP, Domain, APN, IF_VPDNAAA, IF_NB)) as md5",s"${dataTime} as datatime")
+      .write.format("parquet").mode(SaveMode.Overwrite).save(outputPath + dataTime)
     /*df.repartition(90)
       .selectExpr("*", "md5(concat(ProductID, CUST_ID, CUST_BELO_ENTE, BELO_CITY_COMP, BELO_PROV_COMP, IND_TYPE, IND_DET_TYPE, PROD_TYPE, ActiveTime, CmpTime, STAT, IMSI_3G, IMSI_4G, ICCID, IF_VPDN, IF_DRTSERV, IF_2G, IF_3G, IF_4G, IF_FLUX, IF_RegLimit, IF_VPDN_CN2, IF_MCB, RegLimitProv, IF_Rcv_SM, IF_Send_SM, IF_P2P_SM, DRTIP, Domain, APN, IF_VPDNAAA, IF_NB)) as md5")
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + dataTime)*/
 
     val todayTable = "todayTable"
-    hiveContext.read.format("orc").load(outputPath + dataTime).registerTempTable(todayTable)
+    hiveContext.read.format("parquet").load(outputPath + dataTime).registerTempTable(todayTable)
     val fulltable = "fulltable"
     hiveContext.sql(
       s"""
@@ -60,7 +61,7 @@ object Upsert_USER_BASIC_FromDB {
          |full join
          |${yestardayTable} y
          |on t.MDN = y.MDN and t.md5=y.md5
-       """.stripMargin).filter("yestmdn is null").coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + fulltable)
+       """.stripMargin).filter("yestmdn is null").coalesce(20).write.format("parquet").mode(SaveMode.Overwrite).save(outputPath + fulltable)
 
     // upsert new/today
     //val insertResult = hiveContext.read.format("orc").load(outputPath + fulltable).collect()
@@ -72,8 +73,8 @@ object Upsert_USER_BASIC_FromDB {
          |on duplicate key update ProductID=?,CUST_ID=?,CUST_BELO_ENTE=?,BELO_CITY_COMP=?,BELO_PROV_COMP=?,IND_TYPE=?,IND_DET_TYPE=?,PROD_TYPE=?,ActiveTime=?,CmpTime=?,STAT=?,IMSI_3G=?,IMSI_4G=?,ICCID=?,IF_VPDN=?,IF_DRTSERV=?,IF_2G=?,IF_3G=?,IF_4G=?,IF_FLUX=?,IF_RegLimit=?,IF_VPDN_CN2=?,IF_MCB=?,RegLimitProv=?,IF_Rcv_SM=?,IF_Send_SM=?,IF_P2P_SM=?,DRTIP=?,Domain=?,APN=?,IF_VPDNAAA=?,IF_NB=?,md5=?,datatime=?
        """.stripMargin
 
-    val executor = Executors.newFixedThreadPool(4)
-    fileSystem.globStatus(new Path(outputPath + fulltable + "/*orc")).foreach(f => {
+    val executor = Executors.newFixedThreadPool(threadNum)
+    fileSystem.globStatus(new Path(outputPath + fulltable + "/*parquet")).foreach(f => {
 
       executor.execute(new Runnable() {
         @Override
@@ -83,7 +84,7 @@ object Upsert_USER_BASIC_FromDB {
             val sqlContext = hiveContext.newSession()
 
             println("--------------------------" + f.getPath.toString + "--------------------------")
-            val result = sqlContext.read.format("orc").load(f.getPath.toString).collect()
+            val result = sqlContext.read.format("parquet").load(f.getPath.toString).collect()
             println("--------------------------" + f.getPath.toString + "--------------------------")
 
             //入3g还是入4g

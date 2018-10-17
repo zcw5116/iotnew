@@ -17,11 +17,18 @@ object CdrM5Delete {
     val appName = sc.getConf.get("spark.app.name")*/
     val nbDeleteTime = args(0)
     val pgwDeleteTime = args(1)
+    val online3gApnProvDeleteTime = args(2)
+    val online4gApnProvDeleteTime = args(3)
 
     val deleteNbM5sql = s"delete from iot_ana_5min_nb_cdr where gather_cycle = '${nbDeleteTime}00' limit 5000"
     val delete4gM5sql = s"delete from iot_ana_5min_4g_cdr where gather_cycle = '${pgwDeleteTime}00' limit 5000"
+    val delete3gApnProvM5sql = s"delete from iot_ana_5min_prov_3g_stat where gather_cycle = '${online3gApnProvDeleteTime}00' limit 5000"
+    val delete4gApnProvM5sql = s"delete from iot_ana_5min_prov_4g_stat where gather_cycle = '${online4gApnProvDeleteTime}00' limit 5000"
+
     val countSql_nb = s"select count(*) from iot_ana_5min_nb_cdr where gather_cycle = '${nbDeleteTime}00'"
     val countSql_4g = s"select count(*) from iot_ana_5min_4g_cdr where gather_cycle = '${pgwDeleteTime}00'"
+    val countSql_3gApnProv = s"select count(*) from iot_ana_5min_prov_3g_stat where gather_cycle = '${online3gApnProvDeleteTime}00'"
+    val countSql_4gApnProv = s"select count(*) from iot_ana_5min_prov_4g_stat where gather_cycle = '${online4gApnProvDeleteTime}00'"
 
     var dbConn = DbUtils.getDBConnection
 
@@ -54,6 +61,36 @@ object CdrM5Delete {
       pstmt4g.close()
     }
     println("-------------------------n4gM5--deleted")
+
+    //delete 3gApnProv
+    val preparedStatement1 = dbConn.prepareStatement(countSql_3gApnProv)
+    val rs1 = preparedStatement1.executeQuery()
+    if(rs1.next()){
+      val deletetimes = (rs1.getInt(1))/5000 + 1
+
+      var pstmt4g: PreparedStatement = null
+      pstmt4g = dbConn.prepareStatement(delete3gApnProvM5sql)
+      for(i<-1 to deletetimes){
+        pstmt4g.executeUpdate()
+      }
+      pstmt4g.close()
+    }
+    println("-------------------------3gApnProv--deleted")
+
+    //delete 4gApnProv
+    val preparedStatement2 = dbConn.prepareStatement(countSql_4gApnProv)
+    val rs2 = preparedStatement2.executeQuery()
+    if(rs2.next()){
+      val deletetimes = (rs2.getInt(1))/5000 + 1
+
+      var pstmt4g: PreparedStatement = null
+      pstmt4g = dbConn.prepareStatement(delete4gApnProvM5sql)
+      for(i<-1 to deletetimes){
+        pstmt4g.executeUpdate()
+      }
+      pstmt4g.close()
+    }
+    println("-------------------------4gApnProv--deleted")
 
     dbConn.close()
   }

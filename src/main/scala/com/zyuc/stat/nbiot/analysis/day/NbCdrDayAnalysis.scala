@@ -63,10 +63,10 @@ object NbCdrDayAnalysis {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select u.custid, c.mdn, t.modelname, c.enbid, b.provname as prov, nvl(b.cityname,'-') as city,
+         |select nvl(u.custid,'未知') as custid, c.mdn, t.modelname, c.enbid, b.provname as prov, nvl(b.cityname,'-') as city,
          |       c.upflow, c.downflow, c.tac, c.chargingid
          |from ${cdrTempTable} c
-         |inner join ${userTable} u on(c.mdn = u.mdn)
+         |left join ${userTable} u on(c.mdn = u.mdn)
          |left join ${bsInfoTable} b on(c.enbid = b.enbid and c.prov=b.provname)
          |left join ${terminalTable} t on(c.tac = t.tac)
        """.stripMargin)

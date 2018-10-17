@@ -37,9 +37,9 @@ object Upsert_USER_BASIC_FromDB {
       x(20), x(21), x(22), x(23), x(24), x(25), x(26), x(27), x(28), x(29), x(30), x(31), x(32), x(33)))
     val df = hiveContext.createDataFrame(rdd, struct)
 
-    df.filter("STAT!='拆机'").repartition(90)
+    df.repartition(90)
       .selectExpr("USERKEY", "concat('86',MDN) as MDN", "ProductID", "CUST_ID", "CUST_BELO_ENTE",
-        "substr(BELO_CITY_COMP,0,length(BELO_CITY_COMP)-2) as BELO_CITY_COMP", "BELO_PROV_COMP", "IND_TYPE",
+        "substr(BELO_CITY_COMP,0,length(BELO_CITY_COMP)-2) as BELO_CITY_COMP", "regexp_replace(BELO_PROV_COMP, '省|市|壮族|自治区|维吾尔|回族', '') as BELO_PROV_COMP", "IND_TYPE",
         "IND_DET_TYPE", "PROD_TYPE", "ActiveTime", "CmpTime", "STAT", "IMSI_3G", "IMSI_4G",
         "ICCID", "IF_VPDN", "IF_DRTSERV", "IF_2G", "IF_3G", "IF_4G", "IF_FLUX",
         "IF_RegLimit", "IF_VPDN_CN2", "IF_MCB", "RegLimitProv", "IF_Rcv_SM", "IF_Send_SM", "IF_P2P_SM",
@@ -61,7 +61,7 @@ object Upsert_USER_BASIC_FromDB {
          |full join
          |${yestardayTable} y
          |on t.MDN = y.MDN and t.md5=y.md5
-       """.stripMargin).filter("yestmdn is null").coalesce(20).write.format("parquet").mode(SaveMode.Overwrite).save(outputPath + fulltable)
+       """.stripMargin).filter("yestmdn is null and STAT!='拆机'").coalesce(20).write.format("parquet").mode(SaveMode.Overwrite).save(outputPath + fulltable)
 
     // upsert new/today
     //val insertResult = hiveContext.read.format("orc").load(outputPath + fulltable).collect()

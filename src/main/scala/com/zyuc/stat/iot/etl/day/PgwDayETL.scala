@@ -39,7 +39,7 @@ object PgwDayETL {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='0'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -49,7 +49,6 @@ object PgwDayETL {
          |as
          |select mdn, custid, prodtype, beloprov, belocity
          |from ${tmpUserTable}
-         |where isnb = '0'
        """.stripMargin)
 
     // 关联基本信息

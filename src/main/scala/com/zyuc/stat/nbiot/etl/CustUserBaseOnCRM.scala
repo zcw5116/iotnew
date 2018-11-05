@@ -5,7 +5,7 @@ import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
 /**
-  * Created by zhoucw on 18-5-11 下午8:41.
+  * Created by liuzk on 18-10-11 下午8:41.
   */
 object CustUserBaseOnCRM {
   def main(args: Array[String]): Unit = {

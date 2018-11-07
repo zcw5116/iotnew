@@ -94,7 +94,7 @@ object NbCdrM5Analysis {
 
     // 将结果写入到hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
-    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").repartition(repartitionNum).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").coalesce(repartitionNum).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection

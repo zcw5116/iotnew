@@ -201,7 +201,7 @@ object PgwCdrDayAnalysis {
     val resultDF = bsResultDF.unionAll(cityResultDF).unionAll(provResultDF).unionAll(tacResultDF).filter("meas_value!=0")
     // 将结果写入到hdfs
     val outputResult = outputPath + dayPath
-    resultDF.repartition(20).write.format("orc").mode(SaveMode.Overwrite).save(outputResult)
+    resultDF.coalesce(200).write.format("orc").mode(SaveMode.Overwrite).save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     val sql =

@@ -92,7 +92,7 @@ object PgwCdrM5Analysis {
 
     // 将结果写入到hdfs
     val outputResult = outputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
-    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
+    inflowDF.unionAll(outflowDF).unionAll(totalflowDF).filter("gather_value!=0").coalesce(20).write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 
     // 将结果写入到tidb, 需要调整为upsert
     var dbConn = DbUtils.getDBConnection

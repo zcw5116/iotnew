@@ -1,11 +1,16 @@
 package com.zyuc.stat.nbiot.analysis.day
 
+import java.io.IOException
+
 import com.zyuc.iot.utils.DbUtils
 import com.zyuc.stat.nbiot.analysis.realtime.utils.CommonUtils
-import org.apache.spark.sql.SaveMode
+import com.zyuc.stat.utils.FileUtils
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
+
 
 /**
   * Created by liuzk on 18-11-01 下午14:29.
@@ -13,9 +18,10 @@ import org.apache.spark.{SparkConf, SparkContext}
   */
 object OpennumDayAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("OPennum_20181101")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("OPennum_20181109")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
+    val fileSystem = FileSystem.get(sc.hadoopConfiguration)
 
     val appName = sc.getConf.get("spark.app.name")
     val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/opennum/")
@@ -24,17 +30,25 @@ object OpennumDayAnalysis {
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
 
     import sqlContext.implicits._
-    def opennumETL(whichtype: String,nettype: String)={
-      val dataDF = sc.textFile(inputPath + dataTime + s"*/iot_prov_opennum_${whichtype}_static." + dataTime + ".ok").map(x=>x.split(",")).filter(_.length==4).
-        filter(x=>x(1).length>1).map(x=>(x(1), x(2), x(3))).toDF("province", "city", "gather_value")
+    def opennumETL(whichtype: String,nettype: String):DataFrame ={
 
-      val resultDF = dataDF.withColumn("gather_cycle", lit(dataTime + "000000")).
-        withColumn("gather_date", lit(dataTime.substring(0,8)))
+      val path = new Path(inputPath + dataTime + s"*/iot_prov_opennum_${whichtype}_static." + dataTime + ".ok")
 
-      val onlineDF = resultDF.selectExpr("gather_cycle","gather_date", "province", "city",
-        "'OPENNUM' as gather_type", s"'${nettype}' as net_type", "gather_value")
+      if (FileUtils.getFilesByWildcard(fileSystem, path.toString).length > 0) {
+        val dataDF = sc.textFile(inputPath + dataTime + s"*/iot_prov_opennum_${whichtype}_static." + dataTime + ".ok").map(x=>x.split(",")).filter(_.length==4).
+          filter(x=>x(1).length>1).map(x=>(x(1), x(2), x(3))).toDF("province", "city", "gather_value")
 
-      onlineDF
+        val resultDF = dataDF.withColumn("gather_cycle", lit(dataTime + "000000")).
+          withColumn("gather_date", lit(dataTime.substring(0,8)))
+
+        val onlineDF = resultDF.selectExpr("gather_cycle","gather_date", "province", "city",
+          "'OPENNUM' as gather_type", s"'${nettype}' as net_type", "gather_value")
+
+        onlineDF
+      }else{
+        val onlineDF = sqlContext.read.json(inputPath + "opennumTmp.json")
+        onlineDF
+      }
     }
 
     val df234g = opennumETL("234g","234G")
@@ -42,7 +56,7 @@ object OpennumDayAnalysis {
     val df4g = opennumETL("4g","4G")
     val dfnb = opennumETL("nb","NB")
 
-    val df_all = df234g.unionAll(df23g).unionAll(df4g).unionAll(dfnb)
+    val df_all = df234g.unionAll(df23g).unionAll(df4g).unionAll(dfnb).filter("gather_cycle!='000'")
     val outputResult = outputPath + "/d=" + dataTime
     df_all.write.mode(SaveMode.Overwrite).format("orc").save(outputResult)
 

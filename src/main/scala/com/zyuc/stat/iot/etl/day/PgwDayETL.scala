@@ -76,7 +76,7 @@ object PgwDayETL {
          |    select mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        count(distinct mdn) as sessions, sum(duration) as duration, PGWIP
+         |        count(mdn) as sessions, sum(duration) as duration, PGWIP
          |    from ${cdrMdnTable}
          |    group by mdn, enbid, provid, lanid, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,

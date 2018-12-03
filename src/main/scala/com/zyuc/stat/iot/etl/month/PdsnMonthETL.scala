@@ -35,7 +35,7 @@ object PdsnMonthETL {
          |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        count(distinct mdn) as sessions, HAIP
+         |        sum(sessions) as sessions, HAIP
          |    from ${cdrTempTable}
          |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,

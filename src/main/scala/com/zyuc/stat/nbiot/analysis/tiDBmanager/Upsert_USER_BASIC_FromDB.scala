@@ -28,7 +28,8 @@ object Upsert_USER_BASIC_FromDB {
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)//20180723
     val yestarday = lastday.toInt
     val yestardayTable= "yestardayTable"
-    hiveContext.read.format("parquet").load(outputPath + yestarday).registerTempTable(yestardayTable)
+    hiveContext.read.format("parquet").load(outputPath + yestarday)
+        .selectExpr("MDN","md5").registerTempTable(yestardayTable)
 
     val inputfiles = inputPath + "/JiTuanWangYun-DuanDaoDuanBaoZhangXiTong_" + dataTime + ".txt"
     val rdd = sc.textFile(inputfiles).map(x => x.split("\t", 34)).filter(_.length !=1)

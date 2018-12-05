@@ -34,7 +34,9 @@ object CustUserBaseOnCRM {
         .toDF("STAT","MDN","custid","belocity","beloprov","prodtype","isnb","is4g","is3g","is2g")
 
       df.filter("STAT!='%拆机%'")
-        .selectExpr("concat('86',MDN) as mdn","custid","prodtype","beloprov","belocity","isnb","is4g","is3g","is2g")
+        .selectExpr("concat('86',MDN) as mdn","custid","prodtype",
+          "regexp_replace(beloprov, '省|市|壮族|自治区|维吾尔|回族', '') as beloprov",
+          "belocity","isnb","is4g","is3g","is2g")
         .coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "tmpToDay")
 
       // 删除目录下的文件

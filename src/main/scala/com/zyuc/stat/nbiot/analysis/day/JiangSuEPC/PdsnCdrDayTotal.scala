@@ -134,8 +134,9 @@ object PdsnCdrDayTotal {
        """.stripMargin
 
     val pstmt = dbConn.prepareStatement(sql)
-    val result = sqlContext.read.format("orc").load(outputPath + d+"/data").
-      map(x=>(x.getInt(0), x.getString(1), x.getString(2),x.getString(3),x.getString(4),x.getDouble(5))).collect()
+    val result = sqlContext.read.format("orc").load(outputPath + d+"/data")
+        .filter("gather_value is not null")
+        .map(x=>(x.getInt(0), x.getString(1), x.getString(2),x.getString(3),x.getString(4),x.getDouble(5))).collect()
 
     var i = 0
     for(r<-result){

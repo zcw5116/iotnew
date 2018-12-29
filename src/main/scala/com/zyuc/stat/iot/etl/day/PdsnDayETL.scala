@@ -28,7 +28,7 @@ object PdsnDayETL {
     val cdrTempTable = "pdsnTempTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath)
       .selectExpr("mdn","siteid","acce_province","acce_region","bsid","pdsn_address",  "originating as upflow",
-        "termination as downflow","substr(meid,1,8) as tac","home_agent")
+        "termination as downflow","substr(meid,1,8) as tac","home_agent", "service_option")//新增了service_option
       .registerTempTable(cdrTempTable)
 
 
@@ -57,7 +57,7 @@ object PdsnDayETL {
          |        c.pdsn_address as PDSNIP,
          |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac as TerminalModel,
-         |        c.upflow, c.downflow, c.home_agent as HAIP
+         |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
          |left join ${bsInfoTable} b on(c.siteid = b.enbid)
@@ -70,16 +70,16 @@ object PdsnDayETL {
       s"""
          |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
+         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP, service_option
          |from(
          |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        count(mdn) as sessions, HAIP
+         |        count(mdn) as sessions, HAIP, service_option
          |    from ${cdrMdnTable}
          |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        HAIP
+         |        HAIP, service_option
          |) t
        """.stripMargin)
 

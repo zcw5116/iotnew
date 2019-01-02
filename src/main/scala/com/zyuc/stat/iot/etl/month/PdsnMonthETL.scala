@@ -30,16 +30,16 @@ object PdsnMonthETL {
       s"""
          |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP
+         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP, service_option
          |from(
          |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        sum(sessions) as sessions, HAIP
+         |        sum(sessions) as sessions, HAIP, service_option
          |    from ${cdrTempTable}
          |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        HAIP
+         |        HAIP, service_option
          |) t
        """.stripMargin)
 

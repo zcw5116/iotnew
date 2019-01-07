@@ -6,6 +6,8 @@ import com.zyuc.stat.iot.etl.util.{CDRConverterUtils, CommonETLUtils}
 import com.zyuc.stat.properties.ConfigProperties
 import com.zyuc.stat.utils.FileUtils.{makeCoalesce, renameHDFSDir}
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.io.{LongWritable, Text}
+import org.apache.hadoop.mapred.TextInputFormat
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{Logging, SparkConf, SparkContext}
@@ -39,6 +41,7 @@ object SMSCETL extends Logging{
   def doJob(parentContext: SQLContext, fileSystem:FileSystem, appName:String, loadTime:String, inputPath:String, outputPath:String, fileWildcard:String, coalesceSize:Int, logType:String, logTableName:String):String = {
     //创建session
     val sqlContext = parentContext.newSession()
+    val sc = sqlContext.sparkContext
     //切换数据库
     //sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
     //第一步：校验参数
@@ -70,7 +73,10 @@ object SMSCETL extends Logging{
 
     //第三步：清洗数据，转换成dataframe
     val smscLocation = srcDoingLocation + "/" + fileWildcard
-    val srcSmscDF = sqlContext.read.format("json").load(smscLocation)
+    val jsonRDD = sc.hadoopFile(smscLocation,classOf[TextInputFormat],classOf[LongWritable],classOf[Text],1)
+      .map(p => new String(p._2.getBytes, 0, p._2.getLength, "GBK"))
+    val srcSmscDF = sqlContext.read.json(jsonRDD)
+    //val srcSmscDF = sqlContext.read.format("json").load(smscLocation)
     val smscDF = parseETL(srcSmscDF, logType)
     if (smscDF == null) {
       logInfo(s"$smscLocation , data file Exists, but no data in file")

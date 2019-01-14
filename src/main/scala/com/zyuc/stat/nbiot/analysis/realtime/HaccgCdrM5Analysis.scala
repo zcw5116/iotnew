@@ -101,7 +101,7 @@ object HaccgCdrM5Analysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_5min_3g_cdr
+         |insert into iot_ana_5min_3g_cdr_20${d}
          |(gather_cycle, gather_date, gather_time,cust_id, city, province, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?)
          |on duplicate key update gather_value=?

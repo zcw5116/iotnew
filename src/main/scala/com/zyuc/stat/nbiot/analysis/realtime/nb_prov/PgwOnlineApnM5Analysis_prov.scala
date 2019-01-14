@@ -43,7 +43,7 @@ object PgwOnlineApnM5Analysis_prov {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_5min_prov_4g_stat
+         |insert into iot_ana_5min_prov_4g_stat_20${d}
          |(gather_cycle, gather_date, gather_time, apn, province, city, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?)
          |on duplicate key update gather_value=?

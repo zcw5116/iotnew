@@ -40,6 +40,7 @@ object NbDayETL {
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+      .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -47,9 +48,8 @@ object NbDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid, prodtype, beloprov, belocity
+         |select mdn, custid, ind_type, ind_det_type, prodtype, beloprov, belocity
          |from ${tmpUserTable}
-         |where isnb = '1'
        """.stripMargin)
 
     // 关联基本信息
@@ -57,7 +57,7 @@ object NbDayETL {
       s"""
          |select  c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
          |        c.servingnodeaddress as sgwip,c.accesspointnameni as apn,
-         |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
+         |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac,
          |        c.upflow, c.downflow, c.p_gwaddress as PGWIP
          |from ${cdrTempTable} c

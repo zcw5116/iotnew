@@ -39,6 +39,7 @@ object PdsnDayETL {
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N'")
+      .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -46,7 +47,7 @@ object PdsnDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid, prodtype, beloprov, belocity
+         |select mdn, custid, ind_type, ind_det_type, prodtype, beloprov, belocity
          |from ${tmpUserTable}
        """.stripMargin)
 
@@ -55,7 +56,7 @@ object PdsnDayETL {
       s"""
          |select  c.mdn, c.siteid, c.acce_province as provid, c.acce_region as lanid, c.bsid,
          |        c.pdsn_address as PDSNIP,
-         |        substr(u.prodtype,1,3) as industry_level1, substr(u.prodtype,4,3) as industry_level2, substr(u.prodtype,7,3) as industry_form,
+         |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac as TerminalModel,
          |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option
          |from ${cdrTempTable} c

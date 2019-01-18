@@ -30,11 +30,11 @@ object CustUserBaseOnCRM {
     if (FileUtils.getFilesByWildcard(fileSystem, path.toString).length > 0) {
       import sqlContext.implicits._
       val df = sc.textFile(CRMpath).map(x => x.split("\t", 34)).filter(_.length !=1)
-        .map(x => (x(12),x(1), x(3),x(5), x(6),x(7),x(9),x(33), x(20), x(19),x(18)))
-        .toDF("STAT","MDN","custid","belocity","beloprov","ind_type","prodtype","isnb","is4g","is3g","is2g")
+        .map(x => (x(12),x(1), x(3),x(5), x(6),x(7),x(8),x(9),x(33), x(20), x(19),x(18)))
+        .toDF("STAT","MDN","custid","belocity","beloprov","ind_type","ind_det_type","prodtype","isnb","is4g","is3g","is2g")
 
       df.filter("STAT!='%拆机%'")
-        .selectExpr("concat('86',MDN) as mdn","custid","prodtype","ind_type",//新增九大行业
+        .selectExpr("concat('86',MDN) as mdn","custid","prodtype","ind_det_type","ind_type",//新增九大行业
           "regexp_replace(beloprov, '省|市|壮族|自治区|维吾尔|回族', '') as beloprov",
           "belocity","isnb","is4g","is3g","is2g")
         .coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "tmpToDay")

@@ -31,7 +31,7 @@ object PgwFluxDayAnalysis {
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y' and beloprov='江苏'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y' and beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
@@ -42,7 +42,6 @@ object PgwFluxDayAnalysis {
          |as
          |select mdn, custid
          |from ${tmpUserTable}
-         |where isnb = '0'
        """.stripMargin)
 
 

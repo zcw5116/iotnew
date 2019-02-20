@@ -6,33 +6,42 @@ import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
 /**
-  * Created by liuzk on 18-12-14.
-  * 异常卡：是用原子基表的：nb8点后 pgw6.30后 pdsn7.30后
+  * Created by liuzk on 18-1-18.
   */
-object NbFluxMonthAnalysis {
+object PdsnFluxWeekAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20181214")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20180118")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_m/nb/")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_m/nb")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_d/pdsn/")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_w/pdsn")
 
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
 
+    val onedayago = sc.getConf.get("spark.app.onedayago","20190120")
+    val twodayago = sc.getConf.get("spark.app.twodayago","20190119")
+    val threedayago = sc.getConf.get("spark.app.threedayago","20190118")
+    val fourdayago = sc.getConf.get("spark.app.fourdayago","20190117")
+    val fivedayago = sc.getConf.get("spark.app.fivedayago","2190116")
+    val sixdayago = sc.getConf.get("spark.app.sixdayago","20190115")
+    val sevendayago = sc.getConf.get("spark.app.sevendayago","20190114")
+
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
-    //val d = dataTime.substring(2, 8)
-    val monthid = dataTime.substring(0, 6)
+    val d = dataTime.substring(2, 8)
 
     val cdrTempTable = "CDRTempTable"
-    sqlContext.read.format("orc").load(inputPath + "monthid=" + monthid)
+    sqlContext.read.format("orc").load(inputPath + "dayid=" + onedayago,
+      inputPath + "dayid=" + twodayago, inputPath + "dayid=" + threedayago,
+      inputPath + "dayid=" + fourdayago, inputPath + "dayid=" + fivedayago,
+      inputPath + "dayid=" + sixdayago, inputPath + "dayid=" + sevendayago)
       .selectExpr("mdn","upflow","downflow")
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1' and beloprov='江苏'").selectExpr("mdn","custid")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N' and beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
@@ -53,10 +62,10 @@ object NbFluxMonthAnalysis {
          |from ${cdrTempTable} c
          |left join ${userTable} u
          |on c.mdn=u.mdn
-       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
+       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
 
     val baseTable = "baseTable"
-    sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/base")
+    sqlContext.read.format("orc").load(outputPath + "/" + d + "/base")
       .filter("custid is not null and custid!=''").registerTempTable(baseTable)
 
 
@@ -75,17 +84,17 @@ object NbFluxMonthAnalysis {
          |group by custid
         """.stripMargin)
 
-    val baseFluxDF = baseFlux.selectExpr("custid", "'NB' as netType", "'月' as anaCycle", s"'${monthid}' as summ_cycle",
+    val baseFluxDF = baseFlux.selectExpr("custid", "'3G' as netType", "'周' as anaCycle", s"'${d}' as summ_cycle",
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
     baseFluxDF.filter("custid is not null and custid!=''").coalesce(10)
-      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/baseFlux")
+      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/baseFlux")
 
 
     //基表部分字段注册成临时表
     val baseFluxTable = "baseFluxTable"
-    sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/baseFlux").filter("cnt>100")
+    sqlContext.read.format("orc").load(outputPath + "/" + d + "/baseFlux").filter("cnt>100")
       .selectExpr("custid", "avgTotalFlow").registerTempTable(baseFluxTable)
 
     val abnormalFlux = sqlContext.sql(
@@ -97,11 +106,11 @@ object NbFluxMonthAnalysis {
          |group by b.custid, mdn, avgTotalFlow
         """.stripMargin).filter("avgFlow*100/avgTotalFlow<50 or avgFlow*100/avgTotalFlow>150")
 
-    val abnormalFluxDF = abnormalFlux.selectExpr("custid", s"'${monthid}' as summ_cycle", "mdn",
+    val abnormalFluxDF = abnormalFlux.selectExpr("custid", s"'${d}' as summ_cycle", "mdn",
       "avgUpflow", "avgDownflow", "avgFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket")
     //异常卡流量保存到hdfs
-    abnormalFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/abnormalFlux")
+    abnormalFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/abnormalFlux")
 
 
   }

@@ -7,6 +7,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-12-14.
+  * 异常卡：是用原子基表的：nb3点后 pgw2.30后 pdsn4.30后
   */
 object NbFluxDayAnalysis {
   def main(args: Array[String]): Unit = {
@@ -14,7 +15,7 @@ object NbFluxDayAnalysis {
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_d/nb/")
     val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_d/nb")
 
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
@@ -23,11 +24,11 @@ object NbFluxDayAnalysis {
     val fileSystem = FileSystem.get(sc.hadoopConfiguration)
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val d = dataTime.substring(2, 8)
-    val partitionPath = s"/d=$d/h=*/m5=*"
+    val dayid = dataTime.substring(0, 8)
 
     val cdrTempTable = "CDRTempTable"
-    sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("mdn","l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow")
+    sqlContext.read.format("orc").load(inputPath + "dayid=" + dayid)
+      .selectExpr("mdn","upflow","downflow")
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
@@ -52,7 +53,7 @@ object NbFluxDayAnalysis {
          |from ${cdrTempTable} c
          |left join ${userTable} u
          |on c.mdn=u.mdn
-       """.stripMargin).coalesce(100).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
+       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + d + "/base")
@@ -78,7 +79,7 @@ object NbFluxDayAnalysis {
                                           "avgUpflow", "avgDownflow", "avgTotalFlow",
                                           "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
-    baseFluxDF.filter("custid is not null and custid!=''").coalesce(20)
+    baseFluxDF.filter("custid is not null and custid!=''").coalesce(10)
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/baseFlux")
 
 
@@ -100,7 +101,7 @@ object NbFluxDayAnalysis {
                                                   "avgUpflow", "avgDownflow", "avgFlow",
                                                   "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket")
     //异常卡流量保存到hdfs
-    abnormalFluxDF.coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/abnormalFlux")
+    abnormalFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/abnormalFlux")
 
 
   }

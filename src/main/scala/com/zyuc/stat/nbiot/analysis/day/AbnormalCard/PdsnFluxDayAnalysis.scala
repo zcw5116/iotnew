@@ -2,20 +2,21 @@ package com.zyuc.stat.nbiot.analysis.day.AbnormalCard
 
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-12-14.
+  * 异常卡：是用原子基表的：nb3点后 pgw2.30后 pdsn4.30后
   */
-object PgwFluxDayAnalysis {
+object PdsnFluxDayAnalysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20181214")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_d/pgw/")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_d/pgw")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_d/pdsn/")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_d/pdsn")
 
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
@@ -31,7 +32,7 @@ object PgwFluxDayAnalysis {
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y' and beloprov='江苏'").selectExpr("mdn","custid")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N' and beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
@@ -74,7 +75,7 @@ object PgwFluxDayAnalysis {
                          |group by custid
                        """.stripMargin)
 
-    val baseFluxDF = baseFlux.selectExpr("custid", "'4G' as netType", "'日' as anaCycle", s"'${d}' as summ_cycle",
+    val baseFluxDF = baseFlux.selectExpr("custid", "'3G' as netType", "'日' as anaCycle", s"'${d}' as summ_cycle",
                                           "avgUpflow", "avgDownflow", "avgTotalFlow",
                                           "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs

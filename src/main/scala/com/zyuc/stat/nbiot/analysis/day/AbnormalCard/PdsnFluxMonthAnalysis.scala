@@ -9,14 +9,14 @@ import org.apache.spark.{SparkConf, SparkContext}
   * Created by liuzk on 18-12-14.
   * 异常卡：是用原子基表的：nb8点后 pgw6.30后 pdsn7.30后
   */
-object NbFluxMonthAnalysis {
+object PdsnFluxMonthAnalysis {
   def main(args: Array[String]): Unit = {
     val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20181214")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
     val appName = sc.getConf.get("spark.app.name")
-    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_m/nb/")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_m/nb")
+    val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot_ete/data/cdr/summ_m/pdsn/")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/abnormalCard/summ_m/pdsn")
 
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
@@ -32,7 +32,7 @@ object NbFluxMonthAnalysis {
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1' and beloprov='江苏'").selectExpr("mdn","custid")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N' and beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
@@ -75,7 +75,7 @@ object NbFluxMonthAnalysis {
          |group by custid
         """.stripMargin)
 
-    val baseFluxDF = baseFlux.selectExpr("custid", "'NB' as netType", "'月' as anaCycle", s"'${monthid}' as summ_cycle",
+    val baseFluxDF = baseFlux.selectExpr("custid", "'3G' as netType", "'月' as anaCycle", s"'${monthid}' as summ_cycle",
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs

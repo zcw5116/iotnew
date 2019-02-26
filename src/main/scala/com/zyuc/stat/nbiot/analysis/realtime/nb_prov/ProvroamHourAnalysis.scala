@@ -9,11 +9,11 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-11-01 下午14:29.
-  * 签约省 接入省 在线数
+  * 签约省 +regcity 接入省 +city 在线数
   */
 object ProvroamHourAnalysis {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("OPennum_20181101")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("opennum_2018101010")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
@@ -24,17 +24,20 @@ object ProvroamHourAnalysis {
     val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/provroam/data")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
+    val dayTime = dataTime.substring(0, 8)
 
     import sqlContext.implicits._
     def opennumETL(inputPath: String)={
-      val dataDF = sc.textFile(inputPath + "*/*"+dataTime+"*").map(x=>x.split(",")).filter(_.length==4).
-        filter(x=>x(1).length>1).map(x=>(x(1), x(2), x(3))).toDF("regprovince", "province", "gather_value")
+      val dataDF = sc.textFile(inputPath + "*/*"+dataTime+"*").map(x=>x.split(",")).filter(_.length==6)
+        .filter(x=>x(1).length>1).map(x=>(x(1), x(2), x(3), x(4), x(5)))
+        .toDF("regprovince", "regcity", "province", "city", "gather_value")
 
       val resultDF = dataDF.withColumn("gather_cycle", lit(dataTime + "0000")).
         withColumn("gather_date", lit(dataTime.substring(0,8))).
         withColumn("gather_time", lit(dataTime.substring(8,10) + "0000"))
 
-      val onlineDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time", "regprovince", "province",
+      val onlineDF = resultDF.selectExpr("gather_cycle","gather_date", "gather_time",
+        "regprovince", "regcity", "province", "city",
         "'ONLINEUSER' as gather_type", "gather_value")
 
       onlineDF
@@ -59,15 +62,15 @@ object ProvroamHourAnalysis {
       dbConn.setAutoCommit(false)
       val sql =
         s"""
-           |insert into ${whichtable}
-           |(gather_cycle, gather_date, gather_time, regprovince, province, gather_type, gather_value)
-           |values (?,?,?,?,?,?,?)
+           |insert into ${whichtable}_${dayTime}
+           |(gather_cycle, gather_date, gather_time, regprovince, regcity, province, city, gather_type, gather_value)
+           |values (?,?,?,?,?,?,?,?,?)
            |on duplicate key update gather_value=?
          """.stripMargin
 
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(whichpath).map(x=>(x.getString(0), x.getString(1),
-      x.getString(2), x.getString(3),x.getString(4), x.getString(5), x.getString(6))).collect()
+      x.getString(2), x.getString(3),x.getString(4), x.getString(5), x.getString(6), x.getString(7), x.getString(8))).collect()
 
     var i =0
     for(r<-result){
@@ -75,18 +78,22 @@ object ProvroamHourAnalysis {
       val gather_date = r._2
       val gather_time = r._3
       val regprovince = r._4
-      val province = r._5
-      val gather_type = r._6
-      val gather_value = r._7
+      val regcity = r._5
+      val province = r._6
+      val city = r._7
+      val gather_type = r._8
+      val gather_value = r._9
 
       pstmt.setString(1, gather_cycle)
       pstmt.setString(2, gather_date)
       pstmt.setString(3, gather_time)
       pstmt.setString(4, regprovince)
-      pstmt.setString(5, province)
-      pstmt.setString(6, gather_type)
-      pstmt.setString(7, gather_value)
-      pstmt.setString(8, gather_value)
+      pstmt.setString(5, regcity)
+      pstmt.setString(6, province)
+      pstmt.setString(7, city)
+      pstmt.setString(8, gather_type)
+      pstmt.setString(9, gather_value)
+      pstmt.setString(10, gather_value)
 
       i += 1
       pstmt.addBatch()

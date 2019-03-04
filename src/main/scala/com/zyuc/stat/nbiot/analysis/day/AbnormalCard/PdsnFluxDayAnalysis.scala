@@ -32,7 +32,8 @@ object PdsnFluxDayAnalysis {
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N' and beloprov='江苏'").selectExpr("mdn","custid")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
+      .filter("beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 

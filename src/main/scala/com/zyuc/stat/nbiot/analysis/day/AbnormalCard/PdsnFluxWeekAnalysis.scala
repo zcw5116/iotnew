@@ -41,7 +41,8 @@ object PdsnFluxWeekAnalysis {
       .registerTempTable(cdrTempTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N' and beloprov='江苏'").selectExpr("mdn","custid")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
+      .filter("beloprov='江苏'").selectExpr("mdn","custid")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
@@ -62,7 +63,7 @@ object PdsnFluxWeekAnalysis {
          |from ${cdrTempTable} c
          |left join ${userTable} u
          |on c.mdn=u.mdn
-       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
+       """.stripMargin).coalesce(70).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + d + "/base")
@@ -88,7 +89,7 @@ object PdsnFluxWeekAnalysis {
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
-    baseFluxDF.filter("custid is not null and custid!=''").coalesce(10)
+    baseFluxDF.filter("custid is not null and custid!=''").coalesce(70)
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/baseFlux")
 
 
@@ -110,7 +111,7 @@ object PdsnFluxWeekAnalysis {
       "avgUpflow", "avgDownflow", "avgFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket")
     //异常卡流量保存到hdfs
-    abnormalFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/abnormalFlux")
+    abnormalFluxDF.coalesce(70).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/abnormalFlux")
 
 
   }

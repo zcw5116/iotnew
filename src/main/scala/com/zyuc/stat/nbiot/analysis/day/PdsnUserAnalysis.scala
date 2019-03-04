@@ -27,7 +27,7 @@ object PdsnUserAnalysis {
 
 
     val inputData = inputPath + "d=" + userDataDayid
-    val pdsnUserDF = sqlContext.read.format("orc").load(inputData).filter("is3g='Y' and is4g='N'")
+    val pdsnUserDF = sqlContext.read.format("orc").load(inputData).filter("is3g='Y' or is4g='Y'")
     val pdsnTable = "spark_pdsn"
     pdsnUserDF.registerTempTable(pdsnTable)
     val statDF = sqlContext.sql(

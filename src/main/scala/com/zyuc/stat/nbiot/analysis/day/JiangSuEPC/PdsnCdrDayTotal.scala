@@ -29,12 +29,20 @@ object PdsnCdrDayTotal {
 
     val cdrTempTable = "CDRTempTable"
     sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("acce_province as prov","originating as upflow","termination as downflow", "mdn")
+      .selectExpr("acce_province as prov","originating as upflow","termination as downflow", "mdn", "sid as enbid")
       //.filter("prov='江苏'")
       .registerTempTable(cdrTempTable)
 
+    //3g : haccg SID
+    import sqlContext.implicits._
+    val haccgSIDPath = sc.getConf.get("spark.app.haccgSIDPath", "/user/iot/data/basic/pdsnSID/pdsnSID.txt")
+    val haccgSIDTable = "haccgSIDTable"
+    sc.textFile(haccgSIDPath).map(x=>x.split("\\t"))
+      .map(x=>(x(0),x(1),x(2))).toDF("sid","provname","cityname").registerTempTable(haccgSIDTable)
+
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N'").selectExpr("mdn","beloprov")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
+      .selectExpr("mdn","beloprov","belocity","ind_type")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -42,78 +50,91 @@ object PdsnCdrDayTotal {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, beloprov
+         |select mdn, beloprov, belocity, ind_type
          |from ${tmpUserTable}
        """.stripMargin)
 
     val baseTable = "baseTable"
     sqlContext.sql(
       s"""
-         |select prov, upflow, downflow, c.mdn, beloprov
-         |from ${cdrTempTable} c left join ${userTable} u
-         |on(c.mdn=u.mdn)
+         |select prov, upflow, downflow, c.mdn, beloprov, nvl(belocity,'未知') as regcity, ind_type, nvl(b.cityname,'未知') as city
+         |from ${cdrTempTable} c
+         |left join ${userTable} u on(c.mdn=u.mdn)
+         |left join ${haccgSIDTable} b on(c.enbid = b.sid and c.prov=b.provname)
        """.stripMargin).repartition(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath+d+"/tmpJoinTable")
     sqlContext.read.format("orc").load(outputPath + d+"/tmpJoinTable").registerTempTable(baseTable)
     //本省
     val localDF = sqlContext.sql(
                     s"""
-                       |select prov,beloprov,count(distinct mdn) as activeUsers,
+                       |select prov, beloprov, regcity, city, ind_type ,count(distinct mdn) as activeUsers,
                        |       sum(upflow) as upflows, sum(downflow) as downflows, sum(upflow+downflow) as totalflows
                        |from ${baseTable}
                        |where prov='江苏' and beloprov='江苏'
-                       |group by prov,beloprov
+                       |group by prov, beloprov, regcity, city, ind_type
                      """.stripMargin)
 
-    val localActiveUsers = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val localActiveUsers = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
                                   "'3G' as net_type","'USER_LOCAL' as gather_type","activeUsers as gather_value")
-    val local_flux = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val local_flux = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
                                   "'3G' as net_type","'FLUX_LOCAL' as gather_type","totalflows as gather_value")
-    val local_flux_u = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val local_flux_u = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
                                   "'3G' as net_type","'FLUX_LOCAL_U' as gather_type","upflows as gather_value")
-    val local_flux_d = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val local_flux_d = localDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
                                   "'3G' as net_type","'FLUX_LOCAL_D' as gather_type","downflows as gather_value")
     //漫出
     val roamoutDF = sqlContext.sql(
                       s"""
-                         |select prov,beloprov,count(distinct mdn) as activeUsers,
+                         |select prov, beloprov, regcity, city, ind_type, count(distinct mdn) as activeUsers,
                          |       sum(upflow) as upflows, sum(downflow) as downflows, sum(upflow+downflow) as totalflows
                          |from ${baseTable}
                          |where prov!='江苏' and beloprov='江苏'
-                         |group by prov,beloprov
+                         |group by prov, beloprov, regcity, city, ind_type
                       """.stripMargin)
 
-    val roamoutActiveUsers = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamoutActiveUsers = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'USER_ROAMOUT' as gather_type","activeUsers as gather_value")
 
-    val roamout_flux = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamout_flux = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMOUT' as gather_type","totalflows as gather_value")
 
-    val roamout_flux_u = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamout_flux_u = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMOUT_U' as gather_type","upflows as gather_value")
 
-    val roamout_flux_d = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamout_flux_d = roamoutDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMOUT_D' as gather_type","downflows as gather_value")
 
     //漫入
     val roaminDF = sqlContext.sql(
       s"""
-         |select prov,beloprov,count(distinct mdn) as activeUsers,
+         |select prov, beloprov, regcity, city, ind_type, count(distinct mdn) as activeUsers,
          |       sum(upflow) as upflows, sum(downflow) as downflows, sum(upflow+downflow) as totalflows
          |from ${baseTable}
          |where prov='江苏' and beloprov!='江苏'
-         |group by prov,beloprov
+         |group by prov, beloprov, regcity, city, ind_type
                       """.stripMargin)
 
-    val roaminActiveUsers = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roaminActiveUsers = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'USER_ROAMIN' as gather_type","activeUsers as gather_value")
 
-    val roamin_flux = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamin_flux = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMIN' as gather_type","totalflows as gather_value")
 
-    val roamin_flux_u = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamin_flux_u = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMIN_U' as gather_type","upflows as gather_value")
 
-    val roamin_flux_d = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","prov as province",
+    val roamin_flux_d = roaminDF.selectExpr(s"${dd} as gather_date","beloprov as regprovince","regcity",
+      "prov as province","city","ind_type",
       "'3G' as net_type","'FLUX_ROAMIN_D' as gather_type","downflows as gather_value")
 
     //    结果保存hdfs
@@ -129,30 +150,37 @@ object PdsnCdrDayTotal {
     val sql =
       s"""
          |insert into iot_ana_day_prov_stat
-         |(gather_date, regprovince, province, net_type, gather_type, gather_value)
-         |values (?,?,?,?,?,?)
+         |(gather_date, regprovince, regcity, province, city, ind_type, net_type, gather_type, gather_value)
+         |values (?,?,?,?,?,?,?,?,?)
        """.stripMargin
 
     val pstmt = dbConn.prepareStatement(sql)
     val result = sqlContext.read.format("orc").load(outputPath + d+"/data")
         .filter("gather_value is not null")
-        .map(x=>(x.getInt(0), x.getString(1), x.getString(2),x.getString(3),x.getString(4),x.getDouble(5))).collect()
+        .map(x=>(x.getInt(0), x.getString(1), x.getString(2),x.getString(3), x.getString(4),
+          x.getString(5),x.getString(6),x.getString(7),x.getDouble(8))).collect()
 
     var i = 0
     for(r<-result){
       val gather_date = r._1
       val regprovince = r._2
-      val province = r._3
-      val net_type = r._4
-      val gather_type = r._5
-      val gather_value = r._6
+      val regcity = r._3
+      val province = r._4
+      val city = r._5
+      val ind_type = r._6
+      val net_type = r._7
+      val gather_type = r._8
+      val gather_value = r._9
 
       pstmt.setString(1, gather_date.toString)
       pstmt.setString(2, regprovince)
-      pstmt.setString(3, province)
-      pstmt.setString(4, net_type)
-      pstmt.setString(5, gather_type)
-      pstmt.setLong(6, gather_value.toLong)
+      pstmt.setString(3, regcity.substring(0, regcity.length - 2))
+      pstmt.setString(4, province)
+      pstmt.setString(5, city)
+      pstmt.setString(6, ind_type)
+      pstmt.setString(7, net_type)
+      pstmt.setString(8, gather_type)
+      pstmt.setLong(9, gather_value.toLong)
 
       i += 1
       pstmt.addBatch()

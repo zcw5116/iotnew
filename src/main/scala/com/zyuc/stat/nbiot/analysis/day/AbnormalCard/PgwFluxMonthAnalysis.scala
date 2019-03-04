@@ -53,7 +53,7 @@ object PgwFluxMonthAnalysis {
          |from ${cdrTempTable} c
          |left join ${userTable} u
          |on c.mdn=u.mdn
-       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
+       """.stripMargin).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/base")
@@ -79,7 +79,7 @@ object PgwFluxMonthAnalysis {
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
-    baseFluxDF.filter("custid is not null and custid!=''").coalesce(10)
+    baseFluxDF.filter("custid is not null and custid!=''")
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/baseFlux")
 
 
@@ -101,7 +101,7 @@ object PgwFluxMonthAnalysis {
       "avgUpflow", "avgDownflow", "avgFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket")
     //异常卡流量保存到hdfs
-    abnormalFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/abnormalFlux")
+    abnormalFluxDF.write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/abnormalFlux")
 
 
   }

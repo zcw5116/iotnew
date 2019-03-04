@@ -43,7 +43,7 @@ object PdsnCdrM5Analysis {
     pdsnM5DF.registerTempTable(pdsnM5Table)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' and is4g='N'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_user"

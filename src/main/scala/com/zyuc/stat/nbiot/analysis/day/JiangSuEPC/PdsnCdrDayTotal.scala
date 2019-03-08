@@ -141,7 +141,8 @@ object PdsnCdrDayTotal {
     val resultDF = localActiveUsers.unionAll(local_flux).unionAll(local_flux_u).unionAll(local_flux_d)
       .unionAll(roamoutActiveUsers).unionAll(roamout_flux).unionAll(roamout_flux_u).unionAll(roamout_flux_d)
       .unionAll(roaminActiveUsers).unionAll(roamin_flux).unionAll(roamin_flux_u).unionAll(roamin_flux_d)
-    resultDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + d+"/data")
+    resultDF.filter("length(regcity)>2")
+      .coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + d+"/data")
 
 
     // 将结果写入到tidb, 需要调整为upsert
@@ -152,6 +153,7 @@ object PdsnCdrDayTotal {
          |insert into iot_ana_day_prov_stat
          |(gather_date, regprovince, regcity, province, city, ind_type, net_type, gather_type, gather_value)
          |values (?,?,?,?,?,?,?,?,?)
+         |on duplicate key update gather_value=?
        """.stripMargin
 
     val pstmt = dbConn.prepareStatement(sql)
@@ -181,6 +183,7 @@ object PdsnCdrDayTotal {
       pstmt.setString(7, net_type)
       pstmt.setString(8, gather_type)
       pstmt.setLong(9, gather_value.toLong)
+      pstmt.setLong(10, gather_value.toLong)
 
       i += 1
       pstmt.addBatch()

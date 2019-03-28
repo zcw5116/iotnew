@@ -9,6 +9,7 @@ import org.apache.spark.sql.hive.HiveContext
 
 /**
   * Created by hadoop on 18-8-7.
+  * 河北 demo
   */
 object NbOfflineM5Analysis_prov {
   def main(args: Array[String]): Unit = {

@@ -7,7 +7,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 /**
   * Created by liuzk on 18-12-14.
-  * 异常卡：是用原子基表的：nb3点后 pgw2.30后 pdsn4.30后
+  * 异常卡：是用原子基表的：nb3.30后 pgw3.后 pdsn6.后
   */
 object NbFluxDayAnalysis {
   def main(args: Array[String]): Unit = {

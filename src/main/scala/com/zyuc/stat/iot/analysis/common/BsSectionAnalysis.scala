@@ -1,6 +1,5 @@
 package com.zyuc.stat.iot.analysis.common
 
-//import com.zyuc.stat.utils.DBUtils
 import com.zyuc.iot.utils
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
@@ -15,7 +14,10 @@ import org.apache.spark.sql.functions.lit
 import scala.collection.mutable.ArrayBuffer
 
 /**
-  * Created by hadoop on 18-7-24.
+  * Created by liuzk(huiqq) on 19-4-3.
+  *
+  * 基站扇区--12223
+  *
   */
 object BsSectionAnalysis extends Logging {
   def main(args: Array[String]): Unit = {
@@ -26,13 +28,13 @@ object BsSectionAnalysis extends Logging {
     var nowDate:Date = new Date()
     logInfo("nowDate" +  nowDate.toString())
 
-    var nowDay =   getDaysBefore(nowDate, 0)
+    var nowDay = getDaysBefore(nowDate, 0)
     nowDay = sc.getConf.get("spark.app.nowday", nowDay)
 
     val dateSDF = new SimpleDateFormat("yyMMdd")
     nowDate = dateSDF.parse(nowDay)
 
-    var lastDay=   getDaysBefore(nowDate, 1)  //dateSDF.format(nowDate.getTime - 60*60*24*1000)
+    var lastDay = getDaysBefore(nowDate, 1)  //dateSDF.format(nowDate.getTime - 60*60*24*1000)
     lastDay = sc.getConf.get("spark.app.lastday", lastDay)
     logInfo("nowDay: " + nowDay + ", lastDay: " + lastDay)
 
@@ -105,24 +107,29 @@ object BsSectionAnalysis extends Logging {
     var df:DataFrame = null
     try{
       df = sqlContext.read.format("orc").load(inputpath)
+        .selectExpr("prov", "t802", "enbid", "t806"," l_timeoflastusage")
 
     }catch{
       case e:Exception => {
         //e.printStackTrace()
-       // throw new Exception("inputpath: " +  inputpath + "  异常")
+        // throw new Exception("inputpath: " +  inputpath + "  异常")
         println("inputpath: ", inputpath, "异常")
         return -1
       }
     }
     println("inputpath: ", inputpath)
     df.registerTempTable("NodeBSectorInfoTmp")
-    //df.printSchema()
-    //df.show()
-    df.registerTempTable("NodeBSectorInfoTmp")
 
     //"/user/iot_ete/bs_sector/pgw/dataTemp/last/d=180716/180709"
     val outpath =  tempSaveDir + "/last/" + dayStr
-    val outDF = sqlContext.sql("select  prov, t802, enbid, t806, max(l_timeoflastusage) as l_timeoflastusage from NodeBSectorInfoTmp group by  prov, t802, enbid, t806").repartition(1)
+    val outDF = sqlContext.sql(
+      """
+         select  case  when prov = '内蒙古'  then '内蒙'  else prov  end as prov,
+                 t802, enbid, t806, max(l_timeoflastusage) as l_timeoflastusage
+         from NodeBSectorInfoTmp
+         where not prov  rlike '[\\.]'
+         group by  prov, t802, enbid, t806
+      """.stripMargin).repartition(1)
     println("outpath: ", outpath) //, outDF.count())
     //outDF.show()
     outDF.write.format("orc").mode(SaveMode.Overwrite).save(outpath)
@@ -180,7 +187,7 @@ object BsSectionAnalysis extends Logging {
                 from NodeBSectorInfoTmp
                 group by  prov, t802, enbid, t806
            ) t
-      """).repartition(1) //.coalesce(1)
+      """).repartition(10) //.coalesce(1)
     println("outpath: ", outpath) //, outDF.count())
     //outDF.printSchema()
     //outDF.show()
@@ -250,7 +257,12 @@ object BsSectionAnalysis extends Logging {
                    from ${now_table}  n """
     }
 
-    val outDF = sqlContext.sql( sqlStatement ).dropDuplicates(Seq("prov","tac","bsid","sectid")).repartition(1)//.coalesce(1)
+    val tmpOutDF = sqlContext.sql( sqlStatement ).dropDuplicates(Seq("prov","tac","bsid","sectid")).repartition(1)//.coalesce(1)
+    val tmpOutTable = "tmpOutTable"
+    tmpOutDF.registerTempTable(tmpOutTable)
+    val outDF = sqlContext.sql(s"select * from ${tmpOutTable} where prov not rlike '^[0-9].*' ")
+
+    //val outDF = sqlContext.sql( sqlStatement ).dropDuplicates(Seq("prov","tac","bsid","sectid")).repartition(1)//.coalesce(1)
 
 
     //outDF.printSchema()
@@ -332,13 +344,14 @@ object BsSectionAnalysis extends Logging {
       case e:Exception => {
         //e.printStackTrace()
         throw new Exception("loadData2Table(" + tableName + "): " + inputpath + "  异常")
-       // println("loadData2Table(" + tableName + "): " + inputpath, "异常")
+        // println("loadData2Table(" + tableName + "): " + inputpath, "异常")
         //createEmptyTabe_T(tableName, sqlContext, sc)
         return -1
       }
     }
     println("loadData2Table(" + tableName + "): " + inputpath) //,  df.count())
     df.registerTempTable(tableName)
+
     //df.printSchema()
     //df.show()
     return 0
@@ -374,7 +387,7 @@ object BsSectionAnalysis extends Logging {
     val result =df.map(x=>(x.getString(0), x.getString(1), x.getString(2), x.getString(3), x.getString(4), x.getString(5), x.getInt(6))).collect()
     println("df.map success")
 
-    var dbConn = DbUtils.getDBConnByName("tidb")
+    var dbConn = DbUtils.getDBConnection
     dbConn.setAutoCommit(false)
     val sql =   "insert into " + tabelName +
       """ (prov,  tac,  bsid, sectid, firstusetime, lastusetime, status)
@@ -500,3 +513,4 @@ object BsSectionAnalysis extends Logging {
     }
   }
 }
+

@@ -1,6 +1,9 @@
 package com.zyuc.stat.nbiot.analysis.tmpTotal
 
+import java.io.InputStream
 import java.sql.{DriverManager, PreparedStatement}
+import java.util.Properties
+
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
 
@@ -25,11 +28,18 @@ object NbProvSession {
 
     val partitionPath = s"/d=$d/h=*/m5=*"
 
-    val jdbcDriver = "oracle.jdbc.driver.OracleDriver"
-    val jdbcUrl = "jdbc:oracle:thin:@100.66.124.129:1521:dbnms" // "jdbc:oracle:thin:@59.43.49.70:20006:dbnms"
-    //plsql这样登          59.43.49.70:20006/dbnms
-    val jdbcUser = "epcslview"
-    val jdbcPassword = "epc_slview129"
+    //    val jdbcDriver = "oracle.jdbc.driver.OracleDriver"
+    //    val jdbcUrl = "jdbc:oracle:thin:@100.66.124.129:1521:dbnms"
+    //    val jdbcUser = "epcslview"
+    //    val jdbcPassword = "epc_slview129"
+    val postgprop = new Properties()
+    val ipstream: InputStream = this.getClass().getResourceAsStream("/oracle.properties")
+    postgprop.load(ipstream)
+    val jdbcDriver = postgprop.getProperty("oracle.driver")
+    val jdbcUrl = postgprop.getProperty("oracle.url")
+    val jdbcUser = postgprop.getProperty("oracle.user")
+    val jdbcPassword= postgprop.getProperty("oracle.password")
+
 
     //sqlContext.read.format("orc").load(inputPath + partitionPath)
     sqlContext.read.format("orc").load(inputPath + partitionPath)

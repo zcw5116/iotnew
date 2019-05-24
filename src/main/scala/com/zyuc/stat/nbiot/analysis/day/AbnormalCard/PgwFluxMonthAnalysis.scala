@@ -36,6 +36,7 @@ object PgwFluxMonthAnalysis {
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 
+    println("aaaaaaaaaaaaaaaaaaaaa")
     val userTable = "spark_User"
     sqlContext.sql(
       s"""
@@ -44,7 +45,7 @@ object PgwFluxMonthAnalysis {
          |select mdn, custid
          |from ${tmpUserTable}
        """.stripMargin)
-
+    println("bbbbbbbbbbbbbbbbbb")
 
     //------------先将两表合并完了，保存到hdfs在分析
     sqlContext.sql(
@@ -55,11 +56,13 @@ object PgwFluxMonthAnalysis {
          |on c.mdn=u.mdn
        """.stripMargin).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
 
+    println("ccccccccccccccccccccccc")
+
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/base")
       .filter("custid is not null and custid!=''").registerTempTable(baseTable)
 
-
+    println("dddddddddddddddddddddddd")
     val baseFlux = sqlContext.sql(
       s"""
          |select custid, avg(upflow) as avgUpflow, avg(downflow) as avgDownflow,
@@ -74,20 +77,20 @@ object PgwFluxMonthAnalysis {
          |where rank*100/maxRank > 10 and rank*100/maxRank < 90
          |group by custid
         """.stripMargin)
-
+    println("eeeeeeeeeeeeeeeeeeeeeeeee")
     val baseFluxDF = baseFlux.selectExpr("custid", "'4G' as netType", "'月' as anaCycle", s"'${monthid}' as summ_cycle",
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
     baseFluxDF.filter("custid is not null and custid!=''")
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/baseFlux")
-
+    println("fffffffffffffffffffff")
 
     //基表部分字段注册成临时表
     val baseFluxTable = "baseFluxTable"
     sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/baseFlux").filter("cnt>100")
       .selectExpr("custid", "avgTotalFlow").registerTempTable(baseFluxTable)
-
+    println("ggggggggggggggggggggg")
     val abnormalFlux = sqlContext.sql(
       s"""
          |select b.custid, mdn, avg(upflow) as avgUpflow, avg(downflow) as avgDownflow,
@@ -102,7 +105,7 @@ object PgwFluxMonthAnalysis {
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket")
     //异常卡流量保存到hdfs
     abnormalFluxDF.write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/abnormalFlux")
-
+    println("hhhhhhhhhhhhhhhhhhhhhhhhhh")
 
   }
 }

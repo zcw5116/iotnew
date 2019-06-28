@@ -61,7 +61,7 @@ object PgwUserAnalysis {
     // 先删除结果
     val deleteSQL =
       s"""
-         |delete from iot_ana_4g_data_summ_d where summ_cycle=? and meas_obj=?
+         |delete from iot_ana_4g_data_summ_d_$dayid where summ_cycle=? and meas_obj=?
        """.stripMargin
     var pstmt: PreparedStatement = null
     pstmt = dbConn.prepareStatement(deleteSQL)
@@ -74,7 +74,7 @@ object PgwUserAnalysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_4g_data_summ_d
+         |insert into iot_ana_4g_data_summ_d_$dayid
          |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_value,meas_rank)
          |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin

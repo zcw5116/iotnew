@@ -153,14 +153,14 @@ object NbCdrDayAnalysis {
 
     //tac
     val tacStatDF = sqlContext.sql(
-      s"""select custid, modelname, '-1' as prov, '-1' as city, '-1' as district, cnt,
+      s"""select custid, modelname, prov, city, '-1' as district, cnt,
          |       row_number() over(partition by custid order by cnt) as modelrank
          |from
          |(
-         |    select custid, modelname, tac,
+         |    select custid, prov, city, modelname, tac,
          |           count(distinct mdn) as cnt
          |    from ${cdrMdnTable}
-         |    group by custid,modelname, tac
+         |    group by custid, prov, city, modelname, tac
          |) t
        """.stripMargin)
     val tacResultDF = tacStatDF.selectExpr(s"'${dataTime}' as summ_cycle", "custid", "city","prov", "district", "'TERMDETAIL' as dim_type", "modelname as dim_obj", "'-1' as meas_obj", "cnt as meas_value", "modelrank as meas_rank" )
@@ -176,7 +176,7 @@ object NbCdrDayAnalysis {
     dbConn.setAutoCommit(false)
     val sql =
       s"""
-         |insert into iot_ana_nb_data_summ_d
+         |insert into iot_ana_nb_data_summ_d_$dd
          |(summ_cycle, cust_id, city, province, district, dim_type, dim_obj, meas_obj, meas_value, meas_rank)
          |values (?,?,?,?,?,?,?,?,?,?)
        """.stripMargin

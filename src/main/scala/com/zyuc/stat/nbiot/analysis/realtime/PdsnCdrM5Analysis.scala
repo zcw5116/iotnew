@@ -38,7 +38,7 @@ object PdsnCdrM5Analysis {
 
     val pdsnpath = inputPath + "/d=" + d + "/h=" + h + "/m5=" + m5
 
-    val pdsnM5DF = sqlContext.read.format("orc").load(pdsnpath)
+    val pdsnM5DF = sqlContext.read.format("orc").load(pdsnpath).filter("acct_status_type=2")
     val pdsnM5Table = "spark_nbm5"
     pdsnM5DF.registerTempTable(pdsnM5Table)
 

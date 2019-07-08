@@ -98,6 +98,9 @@ object ConvertServer {
           }else if (serverLine == "haccgETL") {
             serverInfo = "未知异常"
             serverInfo = HACCGETL.doJob(sqlContext, fileSystem, Params)
+          } else if (serverLine == "auth3gaaaETL") {
+            serverInfo = "未知异常"
+            serverInfo = AuthLog3GAAAETL.doJob(sqlContext, fileSystem, Params)
           } else if(serverLine == "epcGwETL"){
             val appName = Params.getString("appName")
             val loadTime = Params.getString("loadTime")

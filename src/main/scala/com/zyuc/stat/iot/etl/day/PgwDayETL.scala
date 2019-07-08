@@ -29,7 +29,7 @@ object PgwDayETL {
     sqlContext.read.format("orc").load(inputPath + partitionPath)
       .selectExpr("mdn","enbid","prov","city","t806","servingnodeaddress","accesspointnameni",
         "l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow",
-        "substr(servedimeisv,1,8) as tac","rattype","duration","p_gwaddress")
+        "substr(servedimeisv,1,8) as tac","rattype","duration","p_gwaddress", "l_timeoffirstusage as times")//次数
       .registerTempTable(cdrTempTable)
 
 
@@ -37,6 +37,7 @@ object PgwDayETL {
     val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/iot/data/basic/IotBSInfo/data/")
     val bsInfoTable = "IOTBSInfoTable"
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
+
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
@@ -52,45 +53,106 @@ object PgwDayETL {
          |from ${tmpUserTable}
        """.stripMargin)
 
-    // 关联基本信息
+//    // 关联基本信息
+//    val mdnDF = sqlContext.sql(
+//      s"""
+//         |select  u.custid, c.mdn, c.enbid, c.prov as provid, nvl(b.cityname,'-') as lanid,
+//         |        zhLabel, userLabel, vendorId, vndorName,  c.t806 as eci,
+//         |        c.servingnodeaddress as sgwip, c.accesspointnameni as apn,
+//         |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
+//         |        u.beloprov as own_provid, u.belocity as own_lanid, c.rattype, c.tac as TerminalModel,
+//         |        c.upflow, c.downflow, c.duration, c.p_gwaddress as PGWIP, c.times
+//         |from ${cdrTempTable} c
+//         |inner join ${userTable} u on(c.mdn = u.mdn)
+//         |left join ${bsInfoTable} b on(c.enbid = b.enbid and c.prov=b.provname)
+//       """.stripMargin)
+//
+//    val cdrMdnTable = "spark_cdrmdn"
+//    //mdnDF.coalesce(200).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "tmp")
+//    mdnDF.write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "tmp")
+//    sqlContext.read.format("orc").load(outputPath + "tmp").registerTempTable(cdrMdnTable)
+//
+//    val resultDF = sqlContext.sql(
+//      s"""
+//         |select custid, mdn, enbid, provid, lanid,
+//         |       zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
+//         |       industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
+//         |       '-1' as busi, upflow, downflow, sessions, duration, times, PGWIP
+//         |from(
+//         |    select custid, mdn, enbid, provid, lanid,
+//         |           zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
+//         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
+//         |        sum(upflow) as upflow, sum(downflow) as downflow,
+//         |        count(mdn) as sessions, sum(duration) as duration, count(distinct times) as times, PGWIP
+//         |    from ${cdrMdnTable}
+//         |    group by custid, mdn, enbid, provid, lanid,
+//         |             zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
+//         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
+//         |        PGWIP
+//         |) t
+//       """.stripMargin)
+//
+//    resultDF.write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
+//    //resultDF.coalesce(100).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
+
+      // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.t806 as eci,
+         |select  c.mdn, c.enbid, c.prov as provid, nvl(b.cityname,'-') as lanid,
+         |        c.t806 as eci,
          |        c.servingnodeaddress as sgwip, c.accesspointnameni as apn,
-         |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
-         |        u.beloprov as own_provid, u.belocity as own_lanid, c.rattype, c.tac as TerminalModel,
-         |        c.upflow, c.downflow,c.duration,c.p_gwaddress as PGWIP
+         |        c.rattype, c.tac as TerminalModel,
+         |        c.upflow, c.downflow, c.duration, c.p_gwaddress as PGWIP, c.times
          |from ${cdrTempTable} c
-         |inner join ${userTable} u on(c.mdn = u.mdn)
          |left join ${bsInfoTable} b on(c.enbid = b.enbid and c.prov=b.provname)
-       """.stripMargin)
-
+           """.stripMargin)
+    //zhLabel, userLabel, vendorId, vndorName,  c.t806 as eci,
     val cdrMdnTable = "spark_cdrmdn"
-    mdnDF.registerTempTable(cdrMdnTable)
+    //mdnDF.coalesce(200).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "tmp")
+    mdnDF.write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "tmp")
+    sqlContext.read.format("orc").load(outputPath + "tmp").registerTempTable(cdrMdnTable)
+
+    val joinedTable = "joinedTable"
+    sqlContext.sql(
+      s"""
+         |select mdn, enbid, provid, lanid,
+         |       eci, sgwip, apn,
+         |       rattype, TerminalModel,
+         |       '-1' as busi, upflow, downflow, sessions, duration, times, PGWIP
+         |from(
+         |    select mdn, enbid, provid, lanid,
+         |           eci, sgwip, apn,
+         |        rattype, TerminalModel,
+         |        sum(upflow) as upflow, sum(downflow) as downflow,
+         |        count(mdn) as sessions, sum(duration) as duration, count(distinct times) as times, PGWIP
+         |    from ${cdrMdnTable}
+         |    group by mdn, enbid, provid, lanid,
+         |             eci, sgwip, apn,
+         |        rattype, TerminalModel,
+         |        PGWIP
+         |) t
+       """.stripMargin).registerTempTable(joinedTable)
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
-         |        '-1' as busi, upflow, downflow, sessions, duration, PGWIP
-         |from(
-         |    select mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
-         |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        count(mdn) as sessions, sum(duration) as duration, PGWIP
-         |    from ${cdrMdnTable}
-         |    group by mdn, enbid, provid, lanid, eci, sgwip, apn,
-         |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
-         |        PGWIP
-         |) t
+         |select  custid, j.mdn, enbid, provid, lanid,
+         |        eci, sgwip, apn,
+         |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
+         |        u.beloprov as own_provid, u.belocity as own_lanid, rattype, TerminalModel,
+         |        '-1' as busi, upflow, downflow, sessions, duration, times, PGWIP
+         |from ${joinedTable} j
+         |inner join
+         |${userTable} u on(j.mdn = u.mdn)
        """.stripMargin)
+      //industry_level1, industry_level2, industry_form, own_provid, own_lanid,
 
-    resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
+      resultDF.write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
+      //resultDF.coalesce(100).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
 
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
-    val partitonTable = "iot_stat_cdr_pgw_day"
-    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(dayid='$dayid')"
-    sqlContext.sql(sql)
+//    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+//    val partitonTable = "iot_stat_cdr_pgw_day"
+//    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(dayid='$dayid')"
+//    sqlContext.sql(sql)
 
   }
 

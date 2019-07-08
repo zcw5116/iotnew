@@ -28,16 +28,18 @@ object HaccgMonthETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select custid, mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP, service_option
+         |        HAIP, service_option,
+         |        '-1' as busi, upflow, downflow, sessions, duration, times
          |from(
-         |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
+         |    select custid, mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
+         |        HAIP, service_option,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        sum(sessions) as sessions, HAIP, service_option
+         |        sum(sessions) as sessions, sum(duration) as duration, sum(times) as times
          |    from ${cdrTempTable}
-         |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
+         |    group by custid, mdn, siteid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        HAIP, service_option
          |) t
@@ -45,10 +47,10 @@ object HaccgMonthETL {
 
     resultDF.coalesce(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "monthid=" + monthid)
 
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
-    val partitonTable = "iot_stat_cdr_haccg_month"
-    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(monthid='$monthid')"
-    sqlContext.sql(sql)
+//    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+//    val partitonTable = "iot_stat_cdr_haccg_month"
+//    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(monthid='$monthid')"
+//    sqlContext.sql(sql)
 
   }
 

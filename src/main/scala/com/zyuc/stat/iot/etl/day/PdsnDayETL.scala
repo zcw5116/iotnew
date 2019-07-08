@@ -26,17 +26,20 @@ object PdsnDayETL {
     val partitionPath = s"/d=$d/h=*/m5=*"
 
     val cdrTempTable = "pdsnTempTable"
-    sqlContext.read.format("orc").load(inputPath + partitionPath)
-      .selectExpr("mdn","siteid","acce_province","acce_region","bsid","pdsn_address",  "originating as upflow",
-        "termination as downflow","substr(meid,1,8) as tac","home_agent", "service_option")//新增了service_option
+    sqlContext.read.format("orc").load(inputPath + partitionPath).filter("acct_status_type='2'")//新增结束 代表真实流量
+      .selectExpr("mdn","sid","acce_province","acce_region","bsid","pdsn_address",  "originating as upflow",
+        "termination as downflow","substr(meid,1,8) as tac","home_agent",
+        "service_option", "acct_session_time", "number_of_active_transitions as times")//新增了service_option,时长,次数
       .registerTempTable(cdrTempTable)
 
 
-    // 基站
-    val iotBSInfoPath = sc.getConf.get("spark.app.IotBSInfoPath", "/user/iot/data/basic/IotBSInfo/data/")
-    val bsInfoTable = "IOTBSInfoTable"
-    sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
-
+    //3g : pdsn SID
+    import sqlContext.implicits._
+    val pdsnSIDPath = sc.getConf.get("spark.app.pdsnSIDPath", "/user/iot/data/basic/pdsnSID/pdsnSID.txt")
+    val pdsnSIDTable = "pdsnSIDTable"
+    sc.textFile(pdsnSIDPath).map(x=>x.split("\\t"))
+      .map(x=>(x(0),x(1),x(2))).toDF("sid","provname","cityname").registerTempTable(pdsnSIDTable)
+    // CRM
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
       .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
@@ -54,14 +57,14 @@ object PdsnDayETL {
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  c.mdn, c.siteid, c.acce_province as provid, c.acce_region as lanid, c.bsid,
+         |select  u.custid, c.mdn, c.sid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.bsid,
          |        c.pdsn_address as PDSNIP,
          |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac as TerminalModel,
-         |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option
+         |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option, c.acct_session_time, c.times
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
-         |left join ${bsInfoTable} b on(c.siteid = b.enbid)
+         |left join ${pdsnSIDTable} b on(c.sid = b.sid)
        """.stripMargin)
 
     val cdrMdnTable = "spark_cdrmdn"
@@ -69,16 +72,18 @@ object PdsnDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select mdn, siteid, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select  custid, mdn, sid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        '-1' as busi, upflow, downflow, sessions, '-1' as duration, HAIP, service_option
+         |        HAIP, service_option,
+         |        '-1' as busi, upflow, downflow, sessions, duration, times
          |from(
-         |    select mdn, siteid, provid, lanid, bsid, PDSNIP,
+         |    select custid, mdn, sid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
+         |        HAIP, service_option,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
-         |        count(mdn) as sessions, HAIP, service_option
+         |        count(mdn) as sessions, sum(acct_session_time) as duration, sum(times) as times
          |    from ${cdrMdnTable}
-         |    group by mdn, siteid, provid, lanid, bsid, PDSNIP,
+         |    group by custid, mdn, sid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        HAIP, service_option
          |) t
@@ -86,10 +91,10 @@ object PdsnDayETL {
 
     resultDF.repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "dayid=" + dayid)
 
-    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
-    val partitonTable = "iot_stat_cdr_pdsn_day"
-    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(dayid='$dayid')"
-    sqlContext.sql(sql)
+//    sqlContext.sql("use " + ConfigProperties.IOT_HIVE_DATABASE)
+//    val partitonTable = "iot_stat_cdr_pdsn_day"
+//    val sql = s"alter table $partitonTable add IF NOT EXISTS partition(dayid='$dayid')"
+//    sqlContext.sql(sql)
 
   }
 

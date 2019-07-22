@@ -39,7 +39,7 @@ object PgwCdrDayTotal {
     sqlContext.read.format("orc").load(iotBSInfoPath).selectExpr("enbid","provname","cityname").registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is4g='Y'")
       .selectExpr("mdn","beloprov","belocity","ind_type")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
@@ -140,7 +140,7 @@ object PgwCdrDayTotal {
       .unionAll(roamoutActiveUsers).unionAll(roamout_flux).unionAll(roamout_flux_u).unionAll(roamout_flux_d)
       .unionAll(roaminActiveUsers).unionAll(roamin_flux).unionAll(roamin_flux_u).unionAll(roamin_flux_d)
 
-    resultDF.filter("length(regcity)>2")
+    resultDF//.filter("length(regcity)>2")
       .coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + d+"/data")
 
 
@@ -174,7 +174,8 @@ object PgwCdrDayTotal {
 
       pstmt.setString(1, gather_date.toString)
       pstmt.setString(2, regprovince)
-      pstmt.setString(3, regcity.substring(0, regcity.length - 2))
+      //pstmt.setString(3, regcity.substring(0, regcity.length - 2))
+      pstmt.setString(3, regcity.toString)
       pstmt.setString(4, province)
       pstmt.setString(5, city)
       pstmt.setString(6, ind_type)

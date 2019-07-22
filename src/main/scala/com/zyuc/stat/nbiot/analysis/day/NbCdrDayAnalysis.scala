@@ -47,7 +47,7 @@ object NbCdrDayAnalysis {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("isnb='1'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"

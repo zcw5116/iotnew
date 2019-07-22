@@ -53,7 +53,7 @@ object PgwCdrDayAnalysis {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is4g='Y'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
 

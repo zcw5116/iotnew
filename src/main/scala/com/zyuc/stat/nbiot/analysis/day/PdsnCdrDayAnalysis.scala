@@ -53,7 +53,7 @@ object PdsnCdrDayAnalysis {
       .map(x=>(x(0),x(1),x(2))).toDF("sid","provname","cityname").registerTempTable(pdsnSIDTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is3g='Y' or is4g='Y'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"

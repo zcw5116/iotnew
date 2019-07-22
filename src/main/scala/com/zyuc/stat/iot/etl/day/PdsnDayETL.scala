@@ -41,7 +41,7 @@ object PdsnDayETL {
       .map(x=>(x(0),x(1),x(2))).toDF("sid","provname","cityname").registerTempTable(pdsnSIDTable)
     // CRM
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is3g='Y' or is4g='Y'")
       .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)

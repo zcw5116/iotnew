@@ -39,7 +39,7 @@ object NbDayETL {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("isnb='1'")
       .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)

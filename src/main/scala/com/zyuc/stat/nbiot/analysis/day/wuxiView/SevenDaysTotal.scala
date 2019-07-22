@@ -21,8 +21,8 @@ object SevenDaysTotal {
     val sqlContext = new HiveContext(sc)
     val appName = sc.getConf.get("spark.app.name")
     val inputPathNB = sc.getConf.get("spark.app.inputPathNB", "/user/iot_ete/data/cdr/summ_d/nb/")
-    val inputPathPGW = sc.getConf.get("spark.app.inputPathNB", "/user/iot_ete/data/cdr/summ_d/pgw/")
-    val inputPathPDSN = sc.getConf.get("spark.app.inputPathNB", "/user/iot_ete/data/cdr/summ_d/pdsn/")
+    val inputPathPGW = sc.getConf.get("spark.app.inputPathPGW", "/user/iot_ete/data/cdr/summ_d/pgw/")
+    val inputPathPDSN = sc.getConf.get("spark.app.inputPathPDSN", "/user/iot_ete/data/cdr/summ_d/pdsn/")
     val outputPath = sc.getConf.get("spark.app.outputPath", "/user/iot/data/prov/wuxiView/")
     val userPath = sc.getConf.get("spark.app.userPath", "/user/iot/data/baseuser/data/")
     val userDataTime = sc.getConf.get("spark.app.userDataTime", "20180510")
@@ -40,7 +40,7 @@ object SevenDaysTotal {
     //  CRM
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath)
-        .filter("belocity='无锡电信'")
+        .filter("belocity='无锡'")
         .selectExpr("mdn","isnb","is4g","is3g")
     val tmpUserTable = "spark_tmpuser"
     userDF.registerTempTable(tmpUserTable)

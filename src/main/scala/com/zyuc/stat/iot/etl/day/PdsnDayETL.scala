@@ -42,7 +42,7 @@ object PdsnDayETL {
     // CRM
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is3g='Y' or is4g='Y'")
-      .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
+      .selectExpr("mdn", "custid", "custname", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -50,14 +50,14 @@ object PdsnDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid, ind_type, ind_det_type, prodtype, beloprov, belocity
+         |select mdn, custid, custname, ind_type, ind_det_type, prodtype, beloprov, belocity
          |from ${tmpUserTable}
        """.stripMargin)
 
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  u.custid, c.mdn, c.sid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.bsid,
+         |select  u.custid, u.custname, c.mdn, c.sid, b.provname as provid, nvl(b.cityname,'-') as lanid, c.bsid,
          |        c.pdsn_address as PDSNIP,
          |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac as TerminalModel,
@@ -72,18 +72,18 @@ object PdsnDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select  custid, mdn, sid, provid, lanid, bsid, PDSNIP, '-1' as apn,
+         |select  custid, custname, mdn, sid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        HAIP, service_option,
          |        '-1' as busi, upflow, downflow, sessions, duration, times
          |from(
-         |    select custid, mdn, sid, provid, lanid, bsid, PDSNIP,
+         |    select custid, custname, mdn, sid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        HAIP, service_option,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(mdn) as sessions, sum(acct_session_time) as duration, sum(times) as times
          |    from ${cdrMdnTable}
-         |    group by custid, mdn, sid, provid, lanid, bsid, PDSNIP,
+         |    group by custid, custname, mdn, sid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
          |        HAIP, service_option
          |) t

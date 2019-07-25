@@ -40,7 +40,7 @@ object NbDayETL {
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("isnb='1'")
-      .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
+      .selectExpr("mdn", "custid","custname", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -48,14 +48,14 @@ object NbDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid, ind_type, ind_det_type, prodtype, beloprov, belocity
+         |select mdn, custid, custname, ind_type, ind_det_type, prodtype, beloprov, belocity
          |from ${tmpUserTable}
        """.stripMargin)
 
     // 关联基本信息
     val mdnDF = sqlContext.sql(
       s"""
-         |select  u.custid, c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid,
+         |select  u.custid, u.custname, c.mdn, c.enbid, b.provname as provid, nvl(b.cityname,'-') as lanid,
          |        zhLabel, userLabel, vendorId, vndorName,  c.t806 as eci,
          |        c.servingnodeaddress as sgwip, c.accesspointnameni as apn,
          |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
@@ -71,18 +71,18 @@ object NbDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select custid, mdn, enbid, provid, lanid,
+         |select custid, custname, mdn, enbid, provid, lanid,
          |       zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
          |       industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |       '-1' as busi, upflow, downflow, sessions, duration, times, PGWIP
          |from(
-         |    select custid, mdn, enbid, provid, lanid,
+         |    select custid, custname, mdn, enbid, provid, lanid,
          |           zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(mdn) as sessions, sum(duration) as duration, count(distinct times) as times, PGWIP
          |    from ${cdrMdnTable}
-         |    group by custid, mdn, enbid, provid, lanid,
+         |    group by custid, custname, mdn, enbid, provid, lanid,
          |             zhLabel, userLabel, vendorId, vndorName, eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, tac, PGWIP
          |) t

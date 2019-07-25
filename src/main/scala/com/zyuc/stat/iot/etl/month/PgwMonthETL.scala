@@ -28,18 +28,18 @@ object PgwMonthETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select custid, mdn, enbid, provid, lanid,
+         |select custid, custname, mdn, enbid, provid, lanid,
          |       eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        '-1' as busi, upflow, downflow, sessions, duration, times, PGWIP
          |from(
-         |    select custid, mdn, enbid, provid, lanid,
+         |    select custid, custname, mdn, enbid, provid, lanid,
          |           eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        sum(sessions) as sessions, sum(duration) as duration, sum(times) as times, PGWIP
          |    from ${cdrTempTable}
-         |    group by custid, mdn, enbid, provid, lanid,
+         |    group by custid, custname, mdn, enbid, provid, lanid,
          |             eci, sgwip, apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, rattype, TerminalModel,
          |        PGWIP

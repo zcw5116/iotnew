@@ -41,7 +41,7 @@ object PgwDayETL {
 
     val userDataPath = userPath + "/d=" + userDataTime
     val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("is4g='Y'")
-      .selectExpr("mdn", "custid", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
+      .selectExpr("mdn", "custid", "custname", "ind_type", "ind_det_type", "prodtype", "beloprov", "belocity")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -49,7 +49,7 @@ object PgwDayETL {
       s"""
          |cache table ${userTable}
          |as
-         |select mdn, custid, ind_type, ind_det_type, prodtype, beloprov, belocity
+         |select mdn, custid, custname, ind_type, ind_det_type, prodtype, beloprov, belocity
          |from ${tmpUserTable}
        """.stripMargin)
 
@@ -135,7 +135,7 @@ object PgwDayETL {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select  custid, j.mdn, enbid, provid, lanid,
+         |select  custid, custname, j.mdn, enbid, provid, lanid,
          |        eci, sgwip, apn,
          |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, rattype, TerminalModel,

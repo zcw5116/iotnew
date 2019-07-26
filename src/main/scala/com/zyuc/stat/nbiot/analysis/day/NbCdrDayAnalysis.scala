@@ -47,7 +47,7 @@ object NbCdrDayAnalysis {
     sqlContext.read.format("orc").load(iotBSInfoPath).registerTempTable(bsInfoTable)
 
     val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath)//.filter("isnb='1'")
+    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1'")
     val tmpUserTable = "spark_tmpUser"
     userDF.registerTempTable(tmpUserTable)
     val userTable = "spark_User"
@@ -71,7 +71,9 @@ object NbCdrDayAnalysis {
          |left join ${terminalTable} t on(c.tac = t.tac)
        """.stripMargin)
     val cdrMdnTable = "spark_cdrmdn"
-    mdnDF.registerTempTable(cdrMdnTable)
+    mdnDF.write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "/tmp")
+    sqlContext.read.format("orc").load(outputPath + "/tmp").registerTempTable(cdrMdnTable)
+    //mdnDF.registerTempTable(cdrMdnTable)
 
     // 基站的信息
     val bsStatDF = sqlContext.sql(

@@ -115,7 +115,7 @@ object NbFluxDayAnalysis {
     "'ABNORMAL_FLUX' as gather_type", "'-1' as dim_obj", "own_provid as regprovince", "own_lanid as regcity",
     "'NB' as net_type", "custid", "custname",  "mdn",
     "avgUpflow as udata", "avgDownflow as ddata", "avgFlow as tdata",
-    "'-1' as sendmsg", "'-1' as recemsg", "'-1' as tmsg")
+    "'-1' as sendmsg", "'-1' as recemsg", "'-1' as tmsg", "avgTotalFlow as avgtdata", "'-1' as avgtmsg")
     //异常卡流量保存到hdfs
     abnormalFluxDF.coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + dayid + "/abnormalFlux")
 
@@ -129,8 +129,8 @@ object NbFluxDayAnalysis {
         s"""
            |insert into $tablename
            |(gather_cycle, gather_date, gather_type, dim_obj, regprovince, regcity, net_type, custid, custname, mdn,
-           |udata, ddata, tdata, sendmsg, recemsg, tmsg)
-           |values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           |udata, ddata, tdata, sendmsg, recemsg, tmsg, avgtdata, avgtmsg)
+           |values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
        """.stripMargin
 
       val pstmt = dbConn.prepareStatement(sql)
@@ -140,7 +140,7 @@ object NbFluxDayAnalysis {
           x.getString(2),x.getString(3), x.getString(4), x.getString(5),
           x.getString(6),x.getString(7),x.getString(8),x.getString(9),
           x.getDouble(10),x.getDouble(11),x.getDouble(12),
-          x.getString(13),x.getString(14),x.getString(15))).collect()
+          x.getString(13),x.getString(14),x.getString(15),x.getDouble(16),x.getString(17))).collect()
 
       var i = 0
       for(r<-result){
@@ -160,6 +160,8 @@ object NbFluxDayAnalysis {
         val sendmsg = r._14
         val recemsg = r._15
         val tmsg = r._16
+        val avgtdata = r._17
+        val avgtmsg =  r._18
 
         pstmt.setString(1, gather_cycle)
         pstmt.setString(2, gather_date)
@@ -177,6 +179,8 @@ object NbFluxDayAnalysis {
         pstmt.setLong(14, sendmsg.toLong)
         pstmt.setLong(15, recemsg.toLong)
         pstmt.setLong(16, tmsg.toLong)
+        pstmt.setLong(17, avgtdata.toLong)
+        pstmt.setLong(18, avgtmsg.toLong)
 
         i += 1
         pstmt.addBatch()

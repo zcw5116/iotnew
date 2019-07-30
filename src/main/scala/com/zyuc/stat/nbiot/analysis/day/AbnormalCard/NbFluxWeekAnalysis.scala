@@ -32,37 +32,13 @@ object NbFluxWeekAnalysis {
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val d = dataTime.substring(2, 8)
 
-    val cdrTempTable = "CDRTempTable"
     sqlContext.read.format("orc").load(inputPath + "dayid=" + onedayago,
       inputPath + "dayid=" + twodayago, inputPath + "dayid=" + threedayago,
       inputPath + "dayid=" + fourdayago, inputPath + "dayid=" + fivedayago,
       inputPath + "dayid=" + sixdayago, inputPath + "dayid=" + sevendayago)
-      .selectExpr("mdn","upflow","downflow")
-      .registerTempTable(cdrTempTable)
-
-    val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("isnb='1' and beloprov='江苏'").selectExpr("mdn","custid")
-    val tmpUserTable = "spark_tmpUser"
-    userDF.registerTempTable(tmpUserTable)
-
-    val userTable = "spark_User"
-    sqlContext.sql(
-      s"""
-         |cache table ${userTable}
-         |as
-         |select mdn, custid
-         |from ${tmpUserTable}
-       """.stripMargin)
-
-
-    //------------先将两表合并完了，保存到hdfs在分析
-    sqlContext.sql(
-      s"""
-         |select custid, c.mdn, upflow, downflow
-         |from ${cdrTempTable} c
-         |left join ${userTable} u
-         |on c.mdn=u.mdn
-       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
+      .filter("own_provid='江苏'")
+      .selectExpr("custid", "mdn","upflow","downflow")
+      .coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + d + "/base")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + d + "/base")

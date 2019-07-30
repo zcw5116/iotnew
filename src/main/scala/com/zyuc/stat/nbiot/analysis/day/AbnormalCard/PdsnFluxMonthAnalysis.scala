@@ -28,33 +28,10 @@ object PdsnFluxMonthAnalysis {
 
     val cdrTempTable = "CDRTempTable"
     sqlContext.read.format("orc").load(inputPath + "monthid=" + monthid)
-      .selectExpr("mdn","upflow","downflow")
-      .registerTempTable(cdrTempTable)
-
-    val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is3g='Y' or is4g='Y'")
-      .filter("beloprov='江苏'").selectExpr("mdn","custid")
-    val tmpUserTable = "spark_tmpUser"
-    userDF.registerTempTable(tmpUserTable)
-
-    val userTable = "spark_User"
-    sqlContext.sql(
-      s"""
-         |cache table ${userTable}
-         |as
-         |select mdn, custid
-         |from ${tmpUserTable}
-       """.stripMargin)
-
-
-    //------------先将两表合并完了，保存到hdfs在分析
-    sqlContext.sql(
-      s"""
-         |select custid, c.mdn, upflow, downflow
-         |from ${cdrTempTable} c
-         |left join ${userTable} u
-         |on c.mdn=u.mdn
-       """.stripMargin).coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
+      .filter("own_provid='江苏'")
+      .selectExpr("custid","mdn","upflow","downflow")
+      .coalesce(10)
+      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/base")

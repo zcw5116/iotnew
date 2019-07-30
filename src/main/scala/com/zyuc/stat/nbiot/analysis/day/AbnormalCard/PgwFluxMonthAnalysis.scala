@@ -28,39 +28,16 @@ object PgwFluxMonthAnalysis {
 
     val cdrTempTable = "CDRTempTable"
     sqlContext.read.format("orc").load(inputPath + "monthid=" + monthid)
-      .selectExpr("mdn","upflow","downflow")
-      .registerTempTable(cdrTempTable)
-
-    val userDataPath = userPath + "/d=" + userDataTime
-    val userDF = sqlContext.read.format("orc").load(userDataPath).filter("is4g='Y' and beloprov='江苏'").selectExpr("mdn","custid")
-    val tmpUserTable = "spark_tmpUser"
-    userDF.registerTempTable(tmpUserTable)
-
-    println("aaaaaaaaaaaaaaaaaaaaa")
-    val userTable = "spark_User"
-    sqlContext.sql(
-      s"""
-         |cache table ${userTable}
-         |as
-         |select mdn, custid
-         |from ${tmpUserTable}
-       """.stripMargin)
-    println("bbbbbbbbbbbbbbbbbb")
-
-    //------------先将两表合并完了，保存到hdfs在分析
-    sqlContext.sql(
-      s"""
-         |select custid, c.mdn, upflow, downflow
-         |from ${cdrTempTable} c
-         |left join ${userTable} u
-         |on c.mdn=u.mdn
-       """.stripMargin).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
+      .filter("own_provid='江苏'")
+      .selectExpr("custid","mdn","upflow","downflow")
+      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/base")
 
     println("ccccccccccccccccccccccc")
 
     val baseTable = "baseTable"
     sqlContext.read.format("orc").load(outputPath + "/" + monthid + "/base")
-      .filter("custid is not null and custid!=''").registerTempTable(baseTable)
+      //.filter("custid is not null and custid!=''")
+      .registerTempTable(baseTable)
 
     println("dddddddddddddddddddddddd")
     val baseFlux = sqlContext.sql(
@@ -82,7 +59,7 @@ object PgwFluxMonthAnalysis {
       "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
-    baseFluxDF.filter("custid is not null and custid!=''")
+    baseFluxDF//.filter("custid is not null and custid!=''")
       .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + monthid + "/baseFlux")
     println("fffffffffffffffffffff")
 

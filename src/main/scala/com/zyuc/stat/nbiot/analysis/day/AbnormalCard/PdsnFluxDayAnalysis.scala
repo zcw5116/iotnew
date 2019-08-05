@@ -32,7 +32,7 @@ object PdsnFluxDayAnalysis {
 
     val cdrTempTable = "CDRTempTable"
     sqlContext.read.format("orc").load(inputPath + "dayid=" + dayid)
-      .filter("own_provid='江苏'")
+      .filter("own_provid='江苏'  and (upflow!=0 or downflow!=0)")
       .filter("custid is not null and custid!=''")
       .selectExpr("custid", "custname", "own_provid", "own_lanid", "mdn","upflow","downflow")
       .coalesce(10)
@@ -46,15 +46,8 @@ object PdsnFluxDayAnalysis {
     val baseFlux = sqlContext.sql(
                       s"""
                          |select custid, custname, own_provid, own_lanid, avg(upflow) as avgUpflow, avg(downflow) as avgDownflow,
-                         |       avg(totalFlow) as avgTotalFlow, count(distinct mdn) as cnt
-                         |from
-                         |(
-                         |select custid, custname, own_provid, own_lanid, mdn, upflow, downflow, (upflow+downflow) as totalFlow,
-                         |       row_number() over(partition by custid order by (upflow+downflow) asc ) rank,
-                         |       count(1) over(partition by custid) maxRank
+                         |       avg(upflow+downflow) as avgTotalFlow, count(distinct mdn) as cnt
                          |from ${baseTable}
-                         |) a
-                         |where rank*100/maxRank > 10 and rank*100/maxRank < 90
                          |group by custid, custname, own_provid, own_lanid
                        """.stripMargin)
 
@@ -62,8 +55,7 @@ object PdsnFluxDayAnalysis {
       "'日' as anaCycle", s"'${dayid}' as summ_cycle", "avgUpflow", "avgDownflow", "avgTotalFlow",
       "'-1' as upPacket", "'-1' as downPacket", "'-1' as totalPacket", "cnt")
     //基表保存到hdfs
-    baseFluxDF.filter("custid is not null and custid!=''").coalesce(10)
-      .write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + dayid + "/baseFlux")
+    baseFluxDF.coalesce(10).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "/" + dayid + "/baseFlux")
 
 
     //基表部分字段注册成临时表
@@ -82,7 +74,7 @@ object PdsnFluxDayAnalysis {
                            |  group by custid, custname, own_provid, own_lanid, mdn
                            |) u
                            |left join ${baseFluxTable} b on(u.custid=b.custid and u.own_lanid=b.own_lanid)
-                         """.stripMargin).filter("avgFlow*100/avgTotalFlow<50 or avgFlow*100/avgTotalFlow>150")
+                         """.stripMargin).filter("avgFlow*100/avgTotalFlow>150")
 
     val abnormalFluxDF = abnormalFlux.selectExpr("'DAY' as gather_cycle", s"'${dayid}' as gather_date",
       "'ABNORMAL_FLUX' as gather_type", "'-1' as dim_obj", "own_provid as regprovince", "own_lanid as regcity",

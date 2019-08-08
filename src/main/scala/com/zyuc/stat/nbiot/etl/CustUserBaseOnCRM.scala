@@ -29,7 +29,7 @@ object CustUserBaseOnCRM {
     println(path.toString)
     if (FileUtils.getFilesByWildcard(fileSystem, path.toString).length > 0) {
       import sqlContext.implicits._
-      val df = sc.textFile(CRMpath).map(x => x.split("\t", 35)).filter(_.length !=1)// 34-->35
+      val df = sc.textFile(CRMpath).map(x => x.split("\t", -1)).filter(_.length !=1)// 34-->35
         .map(x => (x(12),x(1), x(3),x(4),x(5), x(6),x(7),x(8),x(9),x(33), x(20), x(19),x(18),x(13),x(14)))
         .toDF("STAT","MDN","custid","custname","belocity","beloprov","ind_type","ind_det_type","prodtype",
           "isnb","is4g","is3g","is2g","IMSI_3G","IMSI_4G")

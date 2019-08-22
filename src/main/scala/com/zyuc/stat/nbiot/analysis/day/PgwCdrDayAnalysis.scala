@@ -203,6 +203,13 @@ object PgwCdrDayAnalysis {
     val outputResult = outputPath + dayPath
     resultDF.coalesce(200).write.format("orc").mode(SaveMode.Overwrite).save(outputResult)
 
+    // 将汇总结果集导出为csv文件，给后台入库
+    sqlContext.read.format("orc").load(outputResult)
+      .repartition(1).write.format("com.databricks.spark.csv").option("header","true").mode("overwrite")
+      .save(outputPath + "/resultCSV/" + dayPath)
+
+    return
+
     // 将结果写入到tidb, 需要调整为upsert
     val sql =
       s"""

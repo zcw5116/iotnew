@@ -4,6 +4,7 @@ import java.io.InputStream
 import java.sql.{DriverManager, PreparedStatement}
 import java.util.Properties
 
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
 
@@ -14,13 +15,13 @@ import org.apache.spark.sql.hive.HiveContext
   */
 object NbCdrJiHe {
   def main(args: Array[String]): Unit = {
-    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_20190416")
+    val sparkConf = new SparkConf()//.setMaster("local[2]").setAppName("name_2019081610")
     val sc = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sc)
 
     val appName = sc.getConf.get("spark.app.name")
     val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data/")
-    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/data/cdr/summ_d/nb")
+    val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/tmp/NbCdrJiHe/")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
     val d = dataTime.substring(2, 8)
@@ -40,15 +41,34 @@ object NbCdrJiHe {
     val jdbcUser = postgprop.getProperty("oracle.user")
     val jdbcPassword= postgprop.getProperty("oracle.password")
 
+    // 昨天时间
+    val yy = dataTime.substring(2, 4)
+    val mm = dataTime.substring(4, 6)
+    val dd = dataTime.substring(6, 8)
+    // 今天时间
+    val todaytime = sc.getConf.get("spark.app.todaytime","todaytime")
+    val tyymmdd = todaytime.substring(2, 8)
+    val tyy = todaytime.substring(2, 4)
+    val tmm = todaytime.substring(4, 6)
+    val tdd = todaytime.substring(6, 8)
 
-    val df = sqlContext.read.format("orc").load(inputPath + s"d=$d")
-      .filter("p_gwaddress like '115.170.14.%' or p_gwaddress like '115.170.15.%'")//.cache()
+    sqlContext.read.option("basePath", inputPath).format("orc").load(inputPath + s"d=$d", inputPath + s"d=$tyymmdd" + "/h=00")
+      .filter("p_gwaddress like '115.170.14.%' or p_gwaddress like '115.170.15.%'")
+      .selectExpr("mdn","chargingid","p_gwaddress","accesspointnameni","starttime",
+        "l_timeoffirstusage","l_timeoflastusage","l_datavolumefbcuplink","l_datavolumefbcdownlink")
+      .coalesce(100)
+      .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "1")
+
+    val df = sqlContext.read.format("orc").load(outputPath + "1")
+
 
     //信令面稽核 话单: 去重MDN数量 + 承载建立成功次数
     val tempTable_xl = "tempTable_xl"
-    df.filter("accesspointnameni='ctnb'")
+    df.filter(s"accesspointnameni='ctnb' and starttime>'20${yy}-${mm}-${dd} 00:00:00' and starttime<'20${tyy}-${tmm}-${tdd} 00:00:00'")
       .selectExpr("mdn","chargingid","p_gwaddress")
-      .registerTempTable(tempTable_xl)
+      .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "2")
+
+    sqlContext.read.format("orc").load(outputPath + "2").registerTempTable(tempTable_xl)
 
     val df1 = sqlContext.sql(
       s"""
@@ -73,9 +93,12 @@ object NbCdrJiHe {
 
     //用户面稽核 话单：去重MDN数量 + 上行流量 + 下行流量 + 总流量
     val tempTable_yh = "tempTable_yh"
-    df.filter("accesspointnameni='psma.edrx0.ctnb' and (l_datavolumefbcuplink>0 or l_datavolumefbcdownlink>0)")
+    df.filter(s"accesspointnameni='psma.edrx0.ctnb' and (l_datavolumefbcuplink>0 or l_datavolumefbcdownlink>0)")
+      .filter(s"(l_timeoffirstusage>'20${yy}-${mm}-${dd} 00:00:00' and l_timeoffirstusage<'20${tyy}-${tmm}-${tdd} 00:00:00') or (l_timeoflastusage>'20${yy}-${mm}-${dd} 00:00:00' or l_timeoflastusage<'20${tyy}-${tmm}-${tdd} 00:00:00')")
       .selectExpr("mdn","p_gwaddress","l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow")
-      .registerTempTable(tempTable_yh)
+      .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "3")
+
+    sqlContext.read.format("orc").load(outputPath + "3").registerTempTable(tempTable_yh)
 
     val df3 = sqlContext.sql(
       s"""

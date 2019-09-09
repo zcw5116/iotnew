@@ -28,7 +28,7 @@ object NbCdrDayTotal {
     val dayPath = s"/d=$d"
 
     val cdrTempTable = "CDRTempTable"
-    sqlContext.read.format("orc").load(inputPath + partitionPath)
+    sqlContext.read.option("basePath", inputPath).format("orc").load(inputPath + partitionPath)
       .selectExpr("prov","l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow", "mdn", "enbid")
       //.filter("prov='江苏'")
       .registerTempTable(cdrTempTable)

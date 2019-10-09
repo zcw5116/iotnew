@@ -34,11 +34,11 @@ object CustUserBaseOnCRM {
         .toDF("STAT","MDN","custid","custname","belocity","beloprov","ind_type","ind_det_type","prodtype",
           "isnb","is4g","is3g","is2g","IMSI_3G","IMSI_4G")
 
-      df.filter("STAT!='%拆机%'")
+      df.filter("STAT!='拆机'")//not like '%拆机%'
         .selectExpr("concat('86',MDN) as mdn","custid","custname","prodtype","ind_det_type","ind_type",//新增九大行业
           "regexp_replace(beloprov, '省|市|壮族|自治区|维吾尔|回族', '') as beloprov",
           "regexp_replace(belocity, '电信', '') as belocity",
-          "isnb","is4g","is3g","is2g","IMSI_3G","IMSI_4G")
+          "isnb","is4g","is3g","is2g","IMSI_3G","IMSI_4G", "STAT")
         .coalesce(20).write.format("orc").mode(SaveMode.Overwrite).save(outputPath + "tmpToDay")
 
       // 删除目录下的文件

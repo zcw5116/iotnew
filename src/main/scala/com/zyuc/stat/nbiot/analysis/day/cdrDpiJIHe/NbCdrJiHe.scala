@@ -21,6 +21,7 @@ object NbCdrJiHe {
 
     val appName = sc.getConf.get("spark.app.name")
     val inputPath = sc.getConf.get("spark.app.inputPath", "/user/iot/data/cdr/transform/nb/data/")
+    val inputPath4G = sc.getConf.get("spark.app.inputPath4G", "/user/iot_ete/data/cdr/transform/pgw/data/")
     val outputPath = sc.getConf.get("spark.app.outputPath","/user/iot/tmp/NbCdrJiHe/")
 
     val dataTime = appName.substring(appName.lastIndexOf("_") + 1)
@@ -59,12 +60,12 @@ object NbCdrJiHe {
       .coalesce(100)
       .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "1")
 
-    val df = sqlContext.read.format("orc").load(outputPath + "1")
+    var df = sqlContext.read.format("orc").load(outputPath + "1")
 
 
     //信令面稽核 话单: 去重MDN数量 + 承载建立成功次数
     val tempTable_xl = "tempTable_xl"
-    df.filter(s"accesspointnameni='ctnb' and starttime>'20${yy}-${mm}-${dd} 00:00:00' and starttime<'20${tyy}-${tmm}-${tdd} 00:00:00'")
+    df.filter(s"accesspointnameni like 'ctnb%' and starttime>'20${yy}-${mm}-${dd} 00:00:00' and starttime<'20${tyy}-${tmm}-${tdd} 00:00:00'")
       .selectExpr("mdn","chargingid","p_gwaddress")
       .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "2")
 
@@ -92,8 +93,8 @@ object NbCdrJiHe {
 
 
     //用户面稽核 话单：去重MDN数量 + 上行流量 + 下行流量 + 总流量
-    val tempTable_yh = "tempTable_yh"
-    df.filter(s"accesspointnameni='psma.edrx0.ctnb' and (l_datavolumefbcuplink>0 or l_datavolumefbcdownlink>0)")
+    val tempTable_yh = "tempTable_yh"// accesspointnameni='psma.edrx0.ctnb'
+    df.filter(s"accesspointnameni like 'psma.edrx0.ctnb%' and (l_datavolumefbcuplink>0 or l_datavolumefbcdownlink>0)")
       .filter(s"(l_timeoffirstusage>'20${yy}-${mm}-${dd} 00:00:00' and l_timeoffirstusage<'20${tyy}-${tmm}-${tdd} 00:00:00') or (l_timeoflastusage>'20${yy}-${mm}-${dd} 00:00:00' or l_timeoflastusage<'20${tyy}-${tmm}-${tdd} 00:00:00')")
       .selectExpr("mdn","p_gwaddress","l_datavolumefbcuplink as upflow","l_datavolumefbcdownlink as downflow")
       .write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "3")

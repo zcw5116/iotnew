@@ -30,7 +30,8 @@ object PdsnDayETL {
       .filter("acct_status_type='2' and session_continue='0'")//新增结束 代表真实流量
       .selectExpr("mdn","sid","cellid","acce_province","acce_region","bsid","pdsn_address",  "originating as upflow",
         "termination as downflow","substr(meid,1,8) as tac","home_agent",
-        "service_option", "acct_session_time", "number_of_active_transitions as times")//新增了service_option,时长,次数
+        "service_option", "acct_session_time", "number_of_active_transitions as times",
+        "siteid", "msid as imsi")//新增了service_option,时长,次数
       .registerTempTable(cdrTempTable)
 
 
@@ -62,7 +63,8 @@ object PdsnDayETL {
          |        c.pdsn_address as PDSNIP,
          |        u.ind_type as industry_level1, u.ind_det_type as industry_level2, u.prodtype as industry_form,
          |        u.beloprov as own_provid, u.belocity as own_lanid, c.tac as TerminalModel,
-         |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option, c.acct_session_time, c.times
+         |        c.upflow, c.downflow, c.home_agent as HAIP, c.service_option, c.acct_session_time, c.times,
+         |        c.siteid, c.imsi
          |from ${cdrTempTable} c
          |inner join ${userTable} u on(c.mdn = u.mdn)
          |left join ${pdsnSIDTable} b on(c.sid = b.sid)
@@ -75,18 +77,18 @@ object PdsnDayETL {
       s"""
          |select  custid, custname, mdn, sid, cellid, provid, lanid, bsid, PDSNIP, '-1' as apn,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        HAIP, service_option,
+         |        HAIP, service_option, siteid, imsi,
          |        '-1' as busi, upflow, downflow, sessions, duration, times
          |from(
          |    select custid, custname, mdn, sid, cellid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        HAIP, service_option,
+         |        HAIP, service_option, siteid, imsi,
          |        sum(upflow) as upflow, sum(downflow) as downflow,
          |        count(mdn) as sessions, sum(acct_session_time) as duration, sum(times) as times
          |    from ${cdrMdnTable}
          |    group by custid, custname, mdn, sid, cellid, provid, lanid, bsid, PDSNIP,
          |        industry_level1, industry_level2, industry_form, own_provid, own_lanid, TerminalModel,
-         |        HAIP, service_option
+         |        HAIP, service_option, siteid, imsi
          |) t
        """.stripMargin)
 

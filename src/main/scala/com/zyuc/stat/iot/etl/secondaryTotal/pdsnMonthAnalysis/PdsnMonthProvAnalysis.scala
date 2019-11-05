@@ -22,7 +22,8 @@ object PdsnMonthProvAnalysis {
 
     val df = sqlContext.read.format("orc").load(inputPath + s"dayid=${monthid}*")
       //.filter("provid='山东'")
-      .selectExpr("provid","lanid","bsid", "sid", "mdn","own_provid","industry_level2","custname","upflow","downflow")
+      .selectExpr("provid","lanid","bsid", "sid", "siteid", "mdn", "imsi",
+      "own_provid","industry_level2","custname","upflow","downflow")
 
     df.coalesce(200).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "tmp")
 
@@ -34,10 +35,10 @@ object PdsnMonthProvAnalysis {
 
     val resultDF = sqlContext.sql(
       s"""
-         |select provid, lanid, bsid, sid, mdn, own_provid, industry_level2, custname,
+         |select provid, lanid, bsid, sid, siteid, mdn, imsi, own_provid, industry_level2, custname,
          |       sum(upflow) upflow, sum(downflow) downflow, sum(upflow+downflow) totalflow
          |from ${table_cdr}
-         |group by provid, lanid, bsid, sid, mdn, own_provid, industry_level2, custname
+         |group by provid, lanid, bsid, sid, siteid, mdn, imsi, own_provid, industry_level2, custname
        """.stripMargin)
 
     var resultCsv = Map("header" -> "true", "delimiter" -> ",", "path" -> s"${outputPath}data")

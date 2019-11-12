@@ -174,7 +174,7 @@ object BigCustomers {
        """.stripMargin).repartition(10).write.mode(SaveMode.Overwrite).format("orc").save(outputPath + "3G_3")
 
 
-
+    // 分隔符只能一位 : Delimiter cannot be more than one character.
     sqlContext.read.format("orc").load(outputPath + "NB_1", outputPath + "4G_1", outputPath + "3G_1")
       .coalesce(1).write.format("com.databricks.spark.csv").option("header","true").mode(SaveMode.Overwrite).save(outputPath + "result_1")
 
